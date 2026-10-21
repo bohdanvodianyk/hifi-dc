@@ -192,6 +192,9 @@ def complete(backend, rgb, sparse, normals, config):
         loss = data + wn * geometric
         if not torch.isfinite(loss):
             raise FloatingPointError('Nonfinite loss; run stopped rather than repairing outputs')
+        if not loss.requires_grad:
+            # The historical v1 defect: guidance computed from a detached prediction.
+            raise RuntimeError('Missing or nonfinite latent gradient: guidance loss is detached from the latent')
         loss.backward()
         if latent.grad is None or not torch.isfinite(latent.grad).all():
             raise RuntimeError('Missing or nonfinite latent gradient')

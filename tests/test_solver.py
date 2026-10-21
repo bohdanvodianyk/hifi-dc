@@ -85,7 +85,7 @@ def test_guidance_gradient():
 
     with torch.no_grad():
         stepped = _sparse_loss(backend, latent - 1e-3 * grad / grad.norm(), t0, encoded, perturbed)
-    assert float(stepped) < float(loss)
+    assert float(stepped) < float(loss.detach())
 
     x_clean = latent.clone().requires_grad_(True)
     grad_clean = torch.autograd.grad(_sparse_loss(backend, x_clean, t0, encoded, sparse), x_clean)[0]
