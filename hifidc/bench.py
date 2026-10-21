@@ -26,8 +26,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 MARIGOLD_CHECKPOINT = 'prs-eth/marigold-depth-v1-0'
 MARIGOLD_REVISION = 'f4fc453d7d217cbe30ddcad3eb311d1ad9a11c4c'
 METRIC_KEYS = ['abs_rel', 'sq_rel', 'rmse', 'mae', 'delta1', 'si_log_rmse', 'frac_pred_nonpositive', 'n_valid']
-CSV_COLUMNS = (['stem', 'source', 'seed', 'status', 'message'] + METRIC_KEYS
-               + ['anchor_residual', 'seconds', 'peak_vram_gb', 'unet_calls', 'unit_uncertain', 'outdoor'])
+CSV_COLUMNS = (['stem', 'source', 'seed', 'case', 'status', 'message'] + METRIC_KEYS
+               + ['holdout_residual', 'anchor_residual', 'seconds', 'peak_vram_gb', 'unet_calls', 'unit_uncertain', 'outdoor'])
 
 
 def configure_determinism(deterministic_attention=None):
@@ -103,13 +103,15 @@ def _summary(rows):
     for name, subset in [('all', ok), ('indoor', [r for r in ok if not r['outdoor']]),
                          ('outdoor', [r for r in ok if r['outdoor']])]:
         summary[name] = aggregate(subset) if subset else {}
-    per_scene = {}
-    for stem in dict.fromkeys(r['stem'] for r in ok):
-        scene_rows = [r for r in ok if r['stem'] == stem]
-        per_scene[stem] = {key: {'mean': float(np.mean([r[key] for r in scene_rows])),
-                                 'sd': float(np.std([r[key] for r in scene_rows], ddof=1)) if len(scene_rows) > 1 else 0.}
-                           for key in METRIC_KEYS + ['anchor_residual', 'seconds']}
-    summary['per_scene'] = per_scene
+    per_case = {}
+    for case in dict.fromkeys(r['case'] for r in ok):
+        case_rows = [r for r in ok if r['case'] == case]
+        keys = [k for k in METRIC_KEYS + ['holdout_residual', 'anchor_residual', 'seconds']
+                if all(isinstance(r.get(k), (int, float)) for r in case_rows)]
+        per_case[case] = {key: {'mean': float(np.mean([r[key] for r in case_rows])),
+                                'sd': float(np.std([r[key] for r in case_rows], ddof=1)) if len(case_rows) > 1 else 0.}
+                          for key in keys}
+    summary['per_case'] = per_case
     return summary
 
 
@@ -121,7 +123,7 @@ def run_benchmark(method, scenes, normals_dir, seeds, resolution, out_dir, run_m
     (out_dir / 'trace').mkdir(exist_ok=True)
     sha, dirty = git_state()
     manifest = {'git_sha': sha, 'git_dirty': dirty, 'run': run_meta, 'resolution': resolution, 'seeds': list(seeds),
-                'scenes': [s.spec.stem for s in scenes], 'versions': environment(),
+                'cases': [s.case_id or s.spec.stem for s in scenes], 'versions': environment(),
                 'determinism': determinism_state(),
                 'started': time.strftime('%Y-%m-%dT%H:%M:%S%z'), 'argv': sys.argv}
     (out_dir / 'manifest.json').write_text(json.dumps(manifest, indent=2, default=str))
@@ -133,7 +135,8 @@ def run_benchmark(method, scenes, normals_dir, seeds, resolution, out_dir, run_m
             path = Path(normals_dir) / f'{spec.stem}_normals.npy'
             normals = np.load(path) if path.is_file() else None
         for seed in seeds:
-            row = {'stem': spec.stem, 'source': spec.source, 'seed': seed, 'status': 'ok', 'message': '',
+            case = scene.case_id or spec.stem
+            row = {'stem': spec.stem, 'source': spec.source, 'seed': seed, 'case': case, 'status': 'ok', 'message': '',
                    'unit_uncertain': spec.unit_uncertain, 'outdoor': spec.outdoor}
             try:
                 if int((scene.sparse > 0).sum()) < 4:
@@ -152,9 +155,12 @@ def run_benchmark(method, scenes, normals_dir, seeds, resolution, out_dir, run_m
                     raise ValueError(f'{spec.stem}: prediction shape {pred.shape} != {scene.gt.shape}')
                 row.update(depth_metrics(pred, scene.gt, scene.valid_gt))
                 row['anchor_residual'] = anchor_residual(pred, scene.sparse)
+                if scene.holdout is not None and (scene.holdout > 0).any():
+                    row['holdout_residual'] = anchor_residual(pred, scene.holdout)
                 row['unet_calls'] = info.get('unet_calls', '')
-                np.save(out_dir / 'pred' / f'{spec.stem}_s{seed}.npy', pred)
-                (out_dir / 'trace' / f'{spec.stem}_s{seed}.json').write_text(
+                name = case.replace('/', '__')
+                np.save(out_dir / 'pred' / f'{name}_s{seed}.npy', pred)
+                (out_dir / 'trace' / f'{name}_s{seed}.json').write_text(
                     json.dumps({k: v for k, v in info.items()}, indent=1, default=str))
             except torch.OutOfMemoryError as error:
                 row.update(status='oom', message=str(error).splitlines()[0][:200])
@@ -164,7 +170,7 @@ def run_benchmark(method, scenes, normals_dir, seeds, resolution, out_dir, run_m
                 _free_cuda()
             rows.append(row)
             _write_csv(out_dir / 'metrics.csv', rows)
-            print(f"[{spec.stem} s{seed}] {row['status']} abs_rel={row.get('abs_rel', '-')} "
+            print(f"[{case} s{seed}] {row['status']} abs_rel={row.get('abs_rel', '-')} "
                   f"t={row.get('seconds', 0):.1f}s vram={row.get('peak_vram_gb', 0):.2f}GB {row['message']}", flush=True)
     (out_dir / 'summary.json').write_text(json.dumps(_summary(rows), indent=2))
     return rows

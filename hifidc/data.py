@@ -32,6 +32,8 @@ class Scene:
     sparse: np.ndarray     # (H, W) float32, native units, 0 = no measurement
     gt: np.ndarray         # (H, W) float32, native units, 0 = invalid
     valid_gt: np.ndarray   # (H, W) bool
+    case_id: str | None = None           # set for resampled evaluation cases (hifidc.cases)
+    holdout: np.ndarray | None = None    # (H, W) withheld clean points, 0 elsewhere
 
 
 def load_manifest(path):
