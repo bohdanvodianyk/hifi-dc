@@ -46,3 +46,48 @@ def aggregate(rows):
     summary = {key: float(np.nanmean([row[key] for row in rows])) for key in SCALE_FREE}
     summary['n_scenes'] = len(rows)
     return summary
+
+
+def edge_metrics(pred, gt, valid, jump=0.1, band=2, min_fill=0.9):
+    """Depth-edge quality on dense GT (NaN when less than ``min_fill`` of the GT is valid).
+
+    Edges are neighbouring valid GT pixels whose log-depth differs by more than ``jump`` (~10 %).
+    edge_abs_rel: AbsRel inside a band of ``band`` px (on a 384-px grid, scaled) around the edges.
+    edge_sharpness: median over edge pairs of |d log pred| / |d log gt| across the same pair, clipped
+    to [0, 2]; 1 = as sharp as GT, a blurred edge is < 1. Both are unit-free.
+    """
+    nan = {'edge_abs_rel': float('nan'), 'edge_sharpness': float('nan'), 'n_edge': 0}
+    if valid.mean() < min_fill:
+        return nan
+    with np.errstate(divide='ignore', invalid='ignore'):
+        lg = np.where(valid, np.log(np.where(valid, gt, 1.0)), np.nan).astype(np.float64)
+        ok_pred = np.isfinite(pred) & (pred > 0)
+        lp = np.where(ok_pred, np.log(np.where(ok_pred, pred, 1.0)), np.nan).astype(np.float64)
+    edges = np.zeros(gt.shape, bool)
+    ratios = []
+    for a, b in (((slice(None), slice(1, None)), (slice(None), slice(None, -1))),
+                 ((slice(1, None), slice(None)), (slice(None, -1), slice(None)))):
+        dg = lg[a] - lg[b]
+        dp = lp[a] - lp[b]
+        pair = np.abs(dg) > jump
+        pair &= np.isfinite(dg)
+        edges[a] |= pair
+        edges[b] |= pair
+        use = pair & np.isfinite(dp)
+        ratios.append(np.clip(np.abs(dp[use]) / np.abs(dg[use]), 0, 2))
+    ratios = np.concatenate(ratios)
+    if not edges.any() or ratios.size == 0:
+        return nan
+    r = max(1, round(band * max(gt.shape) / 384))
+    grown = edges.copy()
+    for _ in range(r):
+        step = grown.copy()
+        step[1:] |= grown[:-1]
+        step[:-1] |= grown[1:]
+        step[:, 1:] |= grown[:, :-1]
+        step[:, :-1] |= grown[:, 1:]
+        grown = step
+    mask = grown & valid & ok_pred
+    err = np.abs(pred[mask].astype(np.float64) - gt[mask]) / gt[mask]
+    return {'edge_abs_rel': float(err.mean()) if err.size else float('nan'),
+            'edge_sharpness': float(np.median(ratios)), 'n_edge': int(edges.sum())}
