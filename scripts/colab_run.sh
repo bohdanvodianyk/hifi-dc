@@ -48,7 +48,7 @@ x "git -C $WORKDIR fetch -q origin"
 x "git -C $WORKDIR -c advice.detachedHead=false checkout -q $REF"
 x "git -C $WORKDIR pull -q --ff-only origin $REF 2>/dev/null || true"
 SHA=$( [ "$DRY" -eq 1 ] && echo 0000000 || git -C "$WORKDIR" rev-parse --short HEAD )
-x "pip install -q torch==2.8.0 --index-url $TORCH_INDEX"
+x "pip install -q torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url $TORCH_INDEX"
 x "pip install -q -e '$WORKDIR[dev]'"
 x "bash $WORKDIR/scripts/setup_external.sh marigold_dc"
 x "tar -xf $DRIVE_ROOT/inputs/hifidc_inputs.tar -C $WORKDIR"

@@ -24,7 +24,7 @@ def test_runner_dry_run_prints_pipeline():
                             capture_output=True, text=True, timeout=60)
     assert result.returncode == 0, result.stderr
     out = result.stdout
-    for expected in ('git clone', 'checkout -q v2-dev', 'torch==2.8.0', 'pip install -q -e', 'setup_external.sh marigold_dc',
+    for expected in ('git clone', 'checkout -q v2-dev', 'torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0', 'pip install -q -e', 'setup_external.sh marigold_dc',
                      'sha256sum -c', 'pytest -m "not gpu"', '--method hifidc --resolution 768 --seeds 2024 2025',
                      '--method marigold_dc --resolution 768 --seeds 2024', 'rsync'):
         assert expected in out, expected
@@ -33,3 +33,16 @@ def test_runner_dry_run_prints_pipeline():
 def test_runner_rejects_bad_spec():
     result = subprocess.run(['bash', str(RUNNER), '--dry-run', 'v2-dev', 'hifidc-768'], capture_output=True, text=True)
     assert result.returncode != 0
+
+
+def test_notebook_quotes_each_run_spec():
+    notebook = nbformat.read(NOTEBOOK, as_version=4)
+    source = '\n'.join(cell.source for cell in notebook.cells)
+    assert 'shlex.quote' in source  # specs with k=v;k=v overrides must reach the script intact
+
+
+def test_runner_keeps_semicolon_overrides_in_one_spec():
+    result = subprocess.run(['bash', str(RUNNER), '--dry-run', 'v2-dev', 'hifidc:384:2024:steps=6;use_normals=false'],
+                            capture_output=True, text=True, timeout=60)
+    assert result.returncode == 0, result.stderr
+    assert '--override steps=6 --override use_normals=false' in result.stdout

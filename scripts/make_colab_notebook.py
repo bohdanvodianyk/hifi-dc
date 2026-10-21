@@ -40,14 +40,14 @@ DRIVE_ROOT = '/content/drive/MyDrive/hifidc-v2'
 REPO = 'https://github.com/bohdanvodianyk/hifi-dc.git'"""
 
 RUN = """# 4. Fetch code at GIT_REF and run everything (install, tests, benchmarks, sync to Drive)
-import os, subprocess
+import os, shlex, subprocess
 os.environ['DRIVE_ROOT'] = DRIVE_ROOT
 os.environ['REPO_URL'] = REPO
 if not os.path.isdir('/content/hifi-dc/.git'):
     subprocess.run(['git', 'clone', '-q', REPO, '/content/hifi-dc'], check=True)
 subprocess.run(['git', '-C', '/content/hifi-dc', 'fetch', '-q', 'origin'], check=True)
 subprocess.run(['git', '-C', '/content/hifi-dc', 'checkout', '-q', GIT_REF], check=True)
-runs = ' '.join(RUNS)
+runs = ' '.join(shlex.quote(r) for r in RUNS)  # keep k=v;k=v override specs intact
 !bash /content/hifi-dc/scripts/colab_run.sh {GIT_REF} {runs}"""
 
 SUMMARY = """# 5. Summaries of the runs now on Drive
