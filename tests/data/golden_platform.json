@@ -1,0 +1,5 @@
+{
+  "machine": "x86_64",
+  "cpu": "13th Gen Intel(R) Core(TM) i7-13850HX",
+  "torch": "2.8.0"
+}

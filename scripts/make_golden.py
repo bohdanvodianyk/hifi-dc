@@ -1,9 +1,10 @@
 """Record golden outputs of the corrected reconstruction on the CPU mock fixture.
 
 Run once against the verbatim clean import (commit 47a4e06); tests/test_golden.py then
-requires every later refactor to reproduce these arrays exactly (atol=0).
+requires every later refactor to reproduce these arrays exactly on this machine (tolerance elsewhere).
 """
 from pathlib import Path
+import json
 import sys
 
 import numpy as np
@@ -35,6 +36,8 @@ def main(out=ROOT / 'tests' / 'data' / 'golden_fixture.npz'):
         arrays[f'{name}_gradnorm'] = np.array([r['latent_gradient_norm'] for r in result['trace']])
     out.parent.mkdir(parents=True, exist_ok=True)
     np.savez(out, **arrays)
+    from test_golden import platform_fingerprint
+    (out.parent / 'golden_platform.json').write_text(json.dumps(platform_fingerprint(), indent=2))
     print(f'wrote {out} with {sorted(arrays)}')
 
 
