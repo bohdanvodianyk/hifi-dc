@@ -14,6 +14,7 @@ import torch
 from diffusers import MarigoldDepthPipeline
 
 from .config import V2Config
+from .geometry import intrinsics_matrix, normal_guidance_loss
 from .robust import robust_l1l2
 from .units import normalize_sparse
 
@@ -33,6 +34,7 @@ class HiFiDCv2Pipeline(MarigoldDepthPipeline):
         device = self._execution_device
         generator = torch.Generator(device=device).manual_seed(seed)
         state = self._prepare(image, sparse_depth, processing_resolution, generator)
+        self._prepare_normals(state, config, normals, kappa, intrinsics)
         trace = []
         self.scheduler.set_timesteps(config.steps, device=device)
         scale = torch.nn.Parameter(torch.ones(1, device=device))
@@ -49,7 +51,7 @@ class HiFiDCv2Pipeline(MarigoldDepthPipeline):
                 pred_epsilon = (alpha_prod_t ** 0.5) * noise + ((1 - alpha_prod_t) ** 0.5) * latent
             step_output = self.scheduler.step(noise, t, latent, generator=generator)
             prediction = self._metric(step_output.pred_original_sample, scale, shift, state)
-            loss = self._guidance_loss(prediction, state, index, config)
+            loss, parts = self._guidance_loss(prediction, state, index, config)
             loss.backward()
             with torch.no_grad():
                 epsilon_norm = torch.linalg.norm(pred_epsilon).item()
@@ -60,7 +62,7 @@ class HiFiDCv2Pipeline(MarigoldDepthPipeline):
                 latent.data = self.scheduler.step(noise, t, latent, generator=generator).prev_sample
             trace.append({'step': index + 1, 'loss': float(loss.detach()), 'latent_grad_norm': grad_norm,
                           'scale': float(scale.detach() ** 2) * state['sparse_range'],
-                          'shift': float(shift.detach() ** 2) * state['sparse_lower']})
+                          'shift': float(shift.detach() ** 2) * state['sparse_lower'], **parts})
             del step_output, prediction, pred_epsilon, noise
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
@@ -96,6 +98,21 @@ class HiFiDCv2Pipeline(MarigoldDepthPipeline):
                 'sparse_range': (sparse[mask].max() - sparse[mask].min()).item(),
                 'sparse_lower': sparse[mask].min().item()}
 
+    def _prepare_normals(self, state, config, normals, kappa, intrinsics):
+        """L3 inputs on the original grid: prior normals [1,3,H,W], optional kappa [1,1,H,W], K."""
+        if config.normal_weight <= 0:
+            return
+        if normals is None:
+            raise ValueError('normal_weight > 0 needs prior normals (HxWx3) on the input grid')
+        device, size = self._execution_device, state['original_resolution']
+        prior = torch.as_tensor(normals, dtype=torch.float32, device=device).permute(2, 0, 1)[None]
+        if tuple(prior.shape[-2:]) != tuple(size):
+            raise ValueError(f'normals {tuple(prior.shape[-2:])} must match the input grid {tuple(size)}')
+        state['normals'] = torch.nn.functional.normalize(prior, dim=1)
+        state['kappa'] = (torch.as_tensor(kappa, dtype=torch.float32, device=device)[None, None]
+                          if kappa is not None and config.kappa_gate else None)
+        state['K'] = intrinsics_matrix(intrinsics, size).to(device)
+
     def _metric(self, latent, scale, shift, state):
         """Decode a latent to metric depth on the original grid (Marigold-DC Eq. 2)."""
         affine_invariant = self.decode_prediction(latent)
@@ -104,8 +121,26 @@ class HiFiDCv2Pipeline(MarigoldDepthPipeline):
         return self.image_processor.resize_antialias(prediction, state['original_resolution'], 'bilinear', is_aa=False)
 
     def _guidance_loss(self, prediction, state, index, config):
-        """L0: L1 + L2 at the sparse points; L2 rung: Huber-weighted."""
+        """L0: L1 + L2 at the sparse points; L2: Huber-weighted; L3: + late gated normal term."""
         predicted, target = prediction[state['mask']], state['sparse'][state['mask']]
         if config.robust == 'huber':
-            return robust_l1l2(predicted, target, config.huber_k)
-        return torch.nn.functional.l1_loss(predicted, target) + torch.nn.functional.mse_loss(predicted, target)
+            loss = robust_l1l2(predicted, target, config.huber_k)
+        else:
+            loss = torch.nn.functional.l1_loss(predicted, target) + torch.nn.functional.mse_loss(predicted, target)
+        parts = {}
+        if config.normal_weight > 0:
+            weight = normal_ramp(index, config)
+            normal_term = prediction.new_zeros(())
+            if weight > 0:
+                normal_term = normal_guidance_loss(prediction, state['normals'], state['kappa'], state['K'],
+                                                   config.edge_tau)
+                loss = loss + weight * normal_term
+            parts = {'normal_weight': weight, 'normal_loss': float(normal_term.detach())}
+        return loss, parts
+
+
+def normal_ramp(index, config):
+    """Normal-term weight at 0-based step ``index``: 0 before normal_start*steps, linear to normal_weight at the end."""
+    start = config.normal_start * config.steps
+    span = max(config.steps - start, 1e-9)
+    return config.normal_weight * min(1.0, max(0.0, (index + 1 - start) / span))

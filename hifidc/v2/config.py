@@ -15,6 +15,11 @@ class V2Config:
     # L2: robust sparse anchor ('none' = L0 loss, 'huber' = Huber IRLS weights with MAD scale).
     robust: str = 'none'
     huber_k: float = 1.345
+    # L3: late, kappa- and edge-gated camera-aware normal guidance (0 = off).
+    normal_weight: float = 0.0
+    normal_start: float = 0.66
+    edge_tau: float = 0.2
+    kappa_gate: bool = True
 
     def validate(self):
         if not isinstance(self.steps, int) or isinstance(self.steps, bool) or self.steps < 1:
@@ -27,6 +32,12 @@ class V2Config:
             raise ValueError('robust must be none or huber')
         if not math.isfinite(self.huber_k) or self.huber_k <= 0:
             raise ValueError('huber_k must be finite and positive')
+        if not math.isfinite(self.normal_weight) or self.normal_weight < 0:
+            raise ValueError('normal_weight must be finite and non-negative')
+        if not 0 <= self.normal_start < 1:
+            raise ValueError('normal_start must be in [0, 1)')
+        if not math.isfinite(self.edge_tau) or self.edge_tau <= 0:
+            raise ValueError('edge_tau must be finite and positive')
         if self.dtype not in ('bfloat16', 'float32'):
             raise ValueError('dtype must be bfloat16 or float32')
         return self

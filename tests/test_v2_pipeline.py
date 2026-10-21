@@ -88,3 +88,32 @@ def test_robust_anchor_resists_an_outlier(tiny_v2_pipeline):
     plain = run(tiny_v2_pipeline, config=V2Config(steps=4), sparse=corrupted)['depth']
     assert np.isfinite(robust).all()
     assert np.abs(robust - clean).mean() < np.abs(plain - clean).mean()
+
+
+def tilted_normals(h=32, w=48):
+    n = np.zeros((h, w, 3), np.float32)
+    n[..., 0], n[..., 2] = 0.4, 1.0
+    return n / np.linalg.norm(n, axis=-1, keepdims=True)
+
+
+def test_normal_guidance_changes_output(tiny_v2_pipeline):
+    base = V2Config(steps=3, normal_start=0.0)
+    without = run(tiny_v2_pipeline, config=base)['depth']
+    guided = run(tiny_v2_pipeline, config=V2Config(steps=3, normal_start=0.0, normal_weight=1.0),
+                 normals=tilted_normals(), kappa=np.ones((32, 48), np.float32))
+    assert np.isfinite(guided['depth']).all()
+    assert np.abs(guided['depth'] - without).max() > 1e-6
+    assert all('normal_loss' in t for t in guided['trace'])
+
+
+def test_normal_ramp_is_late():
+    from hifidc.v2.pipeline import normal_ramp
+    config = V2Config(steps=50, normal_weight=0.1, normal_start=0.66)
+    assert normal_ramp(0, config) == 0.0 and normal_ramp(32, config) == 0.0
+    assert abs(normal_ramp(49, config) - 0.1) < 1e-12
+    assert 0 < normal_ramp(40, config) < 0.1
+
+
+def test_normal_weight_requires_normals(tiny_v2_pipeline):
+    with pytest.raises(ValueError, match='normals'):
+        run(tiny_v2_pipeline, config=V2Config(steps=3, normal_weight=0.1))
