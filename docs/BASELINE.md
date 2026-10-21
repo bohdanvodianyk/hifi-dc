@@ -9,10 +9,11 @@ one seed, native units per scene.
 
 | run | command | commit |
 |---|---|---|
-| A, B | `python scripts/run_benchmark.py --method hifidc --resolution 384 --seeds 2024 --out results/local_hifidc_paper_v1_384_{a,b}` | `152a45a` |
-| C (guidance off) | same with `--override learning_rate=1e-12` | `152a45a` |
-| D (Marigold-DC) | `python scripts/run_benchmark.py --method marigold_dc --resolution 384 --seeds 2024 --out results/local_marigold_dc_384` | `152a45a` |
+| A, B | `python scripts/run_benchmark.py --method hifidc --resolution 384 --seeds 2024 --out results/local_hifidc_paper_v1_384_{a,b}` | `f13add9` |
+| C (guidance off) | same with `--override learning_rate=1e-12` | `f13add9` |
+| D (Marigold-DC) | `python scripts/run_benchmark.py --method marigold_dc --resolution 384 --seeds 2024 --out results/local_marigold_dc_384` | `f13add9` |
 
+Run manifests record the pre-rewrite hash `152a45a` of the same tree (history was re-authored before publishing).
 Environment: Python 3.12.15, torch 2.8.0+cu128, diffusers 0.35.1, NVIDIA RTX 2000 Ada Laptop (8 GB).
 HiFi-DC runs in float32; Marigold-DC uses its own default (bfloat16, 50 steps, ensemble 1).
 Deterministic mode (`configure_determinism`: deterministic algorithms, cuBLAS workspace, math
