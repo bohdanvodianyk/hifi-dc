@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "hifidc"
 version = "1.1.0.dev0"
 description = "HiFi-DC: zero-shot depth completion with a guided diffusion depth prior"
+readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.12"
 dependencies = [

@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use HiFi-DC, please cite the paper below."
+title: "HiFi-DC"
+repository-code: "https://github.com/bohdanvodianyk/hifi-dc"
+license: Apache-2.0
+authors:
+  - family-names: Vodianyk
+    given-names: Bohdan
+preferred-citation:
+  type: article
+  title: "HIFI-DC: High-fidelity detail-preserving depth completion"
+  authors:
+    - family-names: Vodianyk
+      given-names: Bohdan
+    - family-names: Nava-Baro
+      given-names: Enrique
+    - family-names: Popov
+      given-names: Anton
+  journal: "Image and Vision Computing"
+  volume: 173
+  start: 106024
+  year: 2026
+  doi: "10.1016/j.imavis.2026.106024"
