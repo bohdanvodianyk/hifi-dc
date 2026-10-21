@@ -1,10 +1,10 @@
-# L3 = L2 + late kappa/edge-gated camera-aware normal guidance (weight swept in Task 9).
+# L3 = L1 + late kappa/edge-gated camera-aware normal guidance (weight swept in Task 9).
 steps: 50
 latent_lr: 0.05
 affine_lr: 0.005
 dtype: bfloat16
 normalize_input: true
-robust: huber
+robust: none
 huber_k: 1.345
 normal_weight: 0.05
 normal_start: 0.66
