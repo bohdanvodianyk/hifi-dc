@@ -1,19 +1,19 @@
 # Local-only workspace material (never published)
-data/
-reference/
-research_notes/
-reports/
-RESEARCH_v2.md
-research-plan.md
-deep-research-report-hifidc-v2.md
-KICKOFF_PROMPT.md
-WORKSPACE.md
-docs/superpowers/
-.superpowers/
-results/
-cache/
-external/
-dist/
+/data/
+/reference/
+/research_notes/
+/reports/
+/RESEARCH_v2.md
+/research-plan.md
+/deep-research-report-hifidc-v2.md
+/KICKOFF_PROMPT.md
+/WORKSPACE.md
+/docs/superpowers/
+/.superpowers/
+/results/
+/cache/
+/external/
+/dist/
 
 # Python
 __pycache__/
