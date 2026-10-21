@@ -28,7 +28,7 @@ from google.colab import drive
 drive.mount('/content/drive')"""
 
 SETTINGS = """# 3. Settings
-DATASETS_ROOT = '/content/drive/MyDrive/marigold_dsine/main_datasets_new'  # searched for below if missing
+DATASETS_ROOT = '/content/drive/MyDrive/ColabNotebooks/marigold_dsine/main_datasets_new'  # searched for below if missing
 DRIVE_ROOT = '/content/drive/MyDrive/hifidc-v2'
 OUT_NAME = 'newdata_v1'          # Drive folder for this selection + its results; new name = new draw
 N_TEST, N_DEV, SEED = 10, 3, 2026  # scenes per dataset
@@ -74,7 +74,7 @@ SELECT = """# 5. Select (or reuse) the scenes and import them
 import json
 if not os.path.isdir(DATASETS_ROOT):  # search all of Drive (My Drive, Computers, shared drives, shortcuts)
     found = subprocess.run(['find', '/content/drive', '-maxdepth', '12', '-type', 'd', '-iname', 'main_datasets_new'],
-                           capture_output=True, text=True).stdout.split()
+                           capture_output=True, text=True).stdout.splitlines()
     print('found:', found)
     assert found, ('main_datasets_new not found under /content/drive: if it is in "Shared with me", add a '
                    'shortcut to My Drive, or set DATASETS_ROOT in cell 3')
