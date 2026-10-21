@@ -117,3 +117,21 @@ def test_normal_ramp_is_late():
 def test_normal_weight_requires_normals(tiny_v2_pipeline):
     with pytest.raises(ValueError, match='normals'):
         run(tiny_v2_pipeline, config=V2Config(steps=3, normal_weight=0.1))
+
+
+def test_field_lowers_final_anchor_error(tiny_v2_pipeline):
+    sparse = sparse_grid(32, 48)
+    sparse[:, 24:] *= 1.5  # right half on a different scale
+    result = run(tiny_v2_pipeline, config=V2Config(steps=4, field=True, field_lambda=0.1, field_start=0.0,
+                                                   field_every=1), sparse=sparse)
+    mask = sparse > 0
+    with_field = ((result['depth'] - sparse)[mask] ** 2).mean()
+    global_only = ((result['depth_global'] - sparse)[mask] ** 2).mean()
+    assert np.isfinite(result['depth']).all()
+    assert with_field < global_only
+    assert any('field_rms' in t for t in result['trace'])
+
+
+def test_field_off_has_no_field_outputs(tiny_v2_pipeline):
+    result = run(tiny_v2_pipeline, config=V2Config(steps=3))
+    assert 'depth_global' not in result and all('field_rms' not in t for t in result['trace'])

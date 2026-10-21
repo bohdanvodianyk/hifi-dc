@@ -15,7 +15,8 @@ from diffusers import MarigoldDepthPipeline
 
 from .config import V2Config
 from .geometry import intrinsics_matrix, normal_guidance_loss
-from .robust import robust_l1l2
+from .field import evaluate_field, fit_residual_field
+from .robust import robust_l1l2, robust_weights
 from .units import normalize_sparse
 
 
@@ -51,7 +52,16 @@ class HiFiDCv2Pipeline(MarigoldDepthPipeline):
                 pred_epsilon = (alpha_prod_t ** 0.5) * noise + ((1 - alpha_prod_t) ** 0.5) * latent
             step_output = self.scheduler.step(noise, t, latent, generator=generator)
             prediction = self._metric(step_output.pred_original_sample, scale, shift, state)
+            field_parts = {}
+            if config.field:
+                start = int(config.field_start * config.steps)
+                if index >= start and (index - start) % config.field_every == 0:
+                    state['field'] = self._fit_field(prediction.detach(), state, config)
+                if 'field' in state:
+                    prediction = prediction + state['field']
+                    field_parts = {'field_rms': float(state['field'].square().mean().sqrt())}
             loss, parts = self._guidance_loss(prediction, state, index, config)
+            parts.update(field_parts)
             loss.backward()
             with torch.no_grad():
                 epsilon_norm = torch.linalg.norm(pred_epsilon).item()
@@ -66,15 +76,20 @@ class HiFiDCv2Pipeline(MarigoldDepthPipeline):
             del step_output, prediction, pred_epsilon, noise
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
+        extra = {}
         with torch.no_grad():
             prediction = self._metric(latent.detach(), scale, shift, state)
+            if config.field:
+                global_depth = self.image_processor.pt_to_numpy(prediction).squeeze() * input_scale
+                extra['depth_global'] = global_depth
+                prediction = prediction + self._fit_field(prediction, state, config)
         depth = self.image_processor.pt_to_numpy(prediction).squeeze()
         if input_scale != 1.0:
             depth = depth * input_scale
         self.maybe_free_model_hooks()
         if not return_details:
             return depth
-        return {'depth': depth, 'trace': trace, 'input_scale': input_scale}
+        return {'depth': depth, 'trace': trace, 'input_scale': input_scale, **extra}
 
     def _prepare(self, image, sparse_depth, processing_resolution, generator):
         device = self._execution_device
@@ -112,6 +127,18 @@ class HiFiDCv2Pipeline(MarigoldDepthPipeline):
         state['kappa'] = (torch.as_tensor(kappa, dtype=torch.float32, device=device)[None, None]
                           if kappa is not None and config.kappa_gate else None)
         state['K'] = intrinsics_matrix(intrinsics, size).to(device)
+
+    def _fit_field(self, prediction, state, config):
+        """L4: closed-form residual field from the sparse residuals of a (global) prediction, [1,1,H,W]."""
+        mask = state['mask'][0, 0]
+        rows, cols = torch.nonzero(mask, as_tuple=True)
+        h, w = mask.shape
+        residual = (state['sparse'] - prediction.detach().float())[0, 0][mask]
+        uv = torch.stack((cols.float() / max(w - 1, 1), rows.float() / max(h - 1, 1)), dim=1)
+        weights = robust_weights(residual, config.huber_k) if config.robust == 'huber' else torch.ones_like(residual)
+        q = fit_residual_field(residual.cpu(), uv.cpu(), weights.cpu(), (config.field_grid_h, config.field_grid_w),
+                               config.field_lambda)
+        return evaluate_field(q.to(prediction.device), (h, w)).to(prediction.dtype)
 
     def _metric(self, latent, scale, shift, state):
         """Decode a latent to metric depth on the original grid (Marigold-DC Eq. 2)."""

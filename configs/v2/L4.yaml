@@ -1,0 +1,18 @@
+# L4 = L3 + low-frequency metric residual field (lambda swept in Task 10).
+steps: 50
+latent_lr: 0.05
+affine_lr: 0.005
+dtype: bfloat16
+normalize_input: true
+robust: huber
+huber_k: 1.345
+normal_weight: 0.05
+normal_start: 0.66
+edge_tau: 0.2
+kappa_gate: true
+field: true
+field_grid_h: 6
+field_grid_w: 8
+field_lambda: 1.0
+field_every: 5
+field_start: 0.3

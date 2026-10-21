@@ -20,6 +20,13 @@ class V2Config:
     normal_start: float = 0.66
     edge_tau: float = 0.2
     kappa_gate: bool = True
+    # L4: low-frequency metric residual field on a coarse grid, refitted in closed form.
+    field: bool = False
+    field_grid_h: int = 6
+    field_grid_w: int = 8
+    field_lambda: float = 1.0
+    field_every: int = 5
+    field_start: float = 0.3
 
     def validate(self):
         if not isinstance(self.steps, int) or isinstance(self.steps, bool) or self.steps < 1:
@@ -38,6 +45,10 @@ class V2Config:
             raise ValueError('normal_start must be in [0, 1)')
         if not math.isfinite(self.edge_tau) or self.edge_tau <= 0:
             raise ValueError('edge_tau must be finite and positive')
+        if self.field_grid_h < 2 or self.field_grid_w < 2 or self.field_every < 1:
+            raise ValueError('field grid must be at least 2x2 and field_every >= 1')
+        if not math.isfinite(self.field_lambda) or self.field_lambda <= 0 or not 0 <= self.field_start < 1:
+            raise ValueError('field_lambda must be positive and field_start in [0, 1)')
         if self.dtype not in ('bfloat16', 'float32'):
             raise ValueError('dtype must be bfloat16 or float32')
         return self
