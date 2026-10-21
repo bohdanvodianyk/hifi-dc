@@ -111,10 +111,10 @@ for case_set in CASE_SETS:
             print('skip (on Drive):', run_id)
             continue
         local = f'/content/results/{run_id}'
-        cmd = ([python, scripts/run_benchmark.py, *shlex.split(method_args), --cases, CASES_ARG[case_set],
-                --data, f{L_OUT}/data, --scenes, SCENES, --normals, NORMALS_DIR,
-                --resolution, str(RESOLUTION), --seeds, *map(str, SEEDS), --out, local, --overwrite])
-        print(===, run_id)
+        cmd = ['python', 'scripts/run_benchmark.py', *shlex.split(method_args), '--cases', CASES_ARG[case_set],
+               '--data', f'{L_OUT}/data', '--scenes', SCENES, '--normals', NORMALS_DIR,
+               '--resolution', str(RESOLUTION), '--seeds', *map(str, SEEDS), '--out', local, '--overwrite']
+        print('===', run_id)
         result = subprocess.run(cmd, cwd=W, capture_output=True, text=True)
         print(result.stdout.strip().splitlines()[-1] if result.stdout.strip() else result.stderr[-2000:])
         shutil.copytree(local, drive_run, dirs_exist_ok=True)"""

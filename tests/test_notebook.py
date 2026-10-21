@@ -57,3 +57,14 @@ def test_newdata_notebook_is_regenerated_and_guards_the_test_split():
                      "scripts/visualize_runs.py", "torch==2.8.0", "drive.mount"):
         assert expected in source, expected
     assert all(cell.get("outputs", []) == [] for cell in notebook.cells if cell.cell_type == "code")
+
+
+def test_newdata_notebook_cells_are_valid_python():
+    import ast
+    import re
+    notebook = nbformat.read(ROOT / "notebooks" / "colab_newdata.ipynb", as_version=4)
+    for cell in notebook.cells:
+        if cell.cell_type != "code":
+            continue
+        code = re.sub(r"(?m)^(\s*)!.*$", r"\1pass", cell.source)  # IPython shell lines
+        ast.parse(code)
