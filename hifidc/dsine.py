@@ -48,6 +48,12 @@ def load_local_dsine_model(ckpt, cfg, device):
 
 
 def dsine_infer_normals(dsine_model, dsine_args, pil_img, device):
+    """Normals [1,3,H,W] on the input grid (60-degree nominal FOV)."""
+    return dsine_infer(dsine_model, dsine_args, pil_img, device)[:, :3]
+
+
+def dsine_infer(dsine_model, dsine_args, pil_img, device):
+    """Full final DSINE output [1,C,H,W]: channels 0-2 normals, channel 3 kappa for v02_kappa."""
     _ensure_import_path()
     from utils import utils as dsine_utils
     from utils.projection import intrins_from_fov
@@ -63,4 +69,4 @@ def dsine_infer_normals(dsine_model, dsine_args, pil_img, device):
     intrinsics[:, 1, 2] += top
     with torch.no_grad():
         normal = dsine_model((image - mean) / std, intrins=intrinsics)[-1]
-    return normal[:, :3, top:top + h, left:left + w]
+    return normal[:, :, top:top + h, left:left + w]
