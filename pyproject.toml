@@ -28,7 +28,7 @@ dev = ["pytest", "nbformat"]
 hifidc = "hifidc.cli:main"
 
 [tool.setuptools]
-packages = ["hifidc"]
+packages = ["hifidc", "hifidc.v2"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

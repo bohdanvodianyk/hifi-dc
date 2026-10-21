@@ -23,7 +23,7 @@ from hifidc.data import load_manifest, load_scene  # noqa: E402
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--method', choices=['hifidc', 'marigold_dc'], required=True)
+    parser.add_argument('--method', choices=['hifidc', 'marigold_dc', 'marigold_dc_norm'], required=True)
     parser.add_argument('--config', default=str(ROOT / 'configs' / 'paper_v1.yaml'))
     parser.add_argument('--override', action='append', default=[], metavar='KEY=VALUE')
     parser.add_argument('--mdc-steps', type=int, default=50, help='Marigold-DC denoising steps')
@@ -65,7 +65,7 @@ def main(argv=None):
             if missing:
                 raise SystemExit(f'missing cached normals for {missing}; run scripts/cache_normals.py first')
     else:
-        method = make_marigold_dc_method(device, steps=args.mdc_steps)
+        method = make_marigold_dc_method(device, steps=args.mdc_steps, normalize=args.method == 'marigold_dc_norm')
         normals_dir = None
     meta = dict(method.meta, overrides=args.override, config_file=args.config,
                 scenes_file_sha256=sha256_json(Path(args.scenes).read_text()))

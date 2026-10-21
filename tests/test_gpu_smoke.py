@@ -91,3 +91,14 @@ def test_repeat_runs_are_bit_identical_across_processes(tmp_path):
         subprocess.run([sys.executable, "-c", code, str(out)], check=True, capture_output=True)
         outputs.append(np.load(out))
     assert np.array_equal(*outputs)
+
+
+def test_marigold_dc_norm_smoke_128px():
+    from hifidc.bench import make_marigold_dc_method
+    scene, _ = load()
+    method = make_marigold_dc_method(torch.device("cuda"), steps=6, normalize=True)
+    pred, info = method(scene, None, 2024, 128)
+    assert pred.shape == scene.gt.shape and np.isfinite(pred).all()
+    assert info["input_scale"] > 0 and method.meta["method"] == "marigold_dc_norm"
+    del method
+    torch.cuda.empty_cache()

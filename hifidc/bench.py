@@ -214,8 +214,12 @@ def make_hifidc_method(config, device, checkpoint=MARIGOLD_CHECKPOINT, revision=
 
 
 def make_marigold_dc_method(device, dtype=torch.bfloat16, steps=50, checkpoint=MARIGOLD_CHECKPOINT,
-                            revision=MARIGOLD_REVISION):
-    """Official Marigold-DC (external/Marigold-DC @ c6d756b) with its default settings."""
+                            revision=MARIGOLD_REVISION, normalize=False):
+    """Official Marigold-DC (external/Marigold-DC @ c6d756b) with its default settings.
+
+    normalize=True feeds sparse depth divided by its median (unit-free, 'MDC-norm' arm) and
+    rescales the prediction back.
+    """
     configure_determinism()
     from diffusers import DDIMScheduler
     from PIL import Image
@@ -231,10 +235,14 @@ def make_marigold_dc_method(device, dtype=torch.bfloat16, steps=50, checkpoint=M
     def method(scene, normals, seed, resolution):
         counter.calls = 0
         to_m = scene.spec.to_metres
-        pred = pipe(image=Image.fromarray(scene.rgb), sparse_depth=(scene.sparse * to_m).astype(np.float32),
+        sparse, scale = (scene.sparse * to_m).astype(np.float32), 1.0
+        if normalize:
+            from .v2.units import normalize_sparse
+            sparse, scale = normalize_sparse(sparse)
+        pred = pipe(image=Image.fromarray(scene.rgb), sparse_depth=sparse,
                     num_inference_steps=steps, ensemble_size=1, processing_resolution=resolution, seed=seed)
-        return np.asarray(pred, dtype=np.float32) / to_m, {'unet_calls': counter.calls}
+        return np.asarray(pred, dtype=np.float32) * scale / to_m, {'unet_calls': counter.calls, 'input_scale': scale}
 
-    method.meta = {'method': 'marigold_dc', 'steps': steps, 'dtype': str(dtype), 'checkpoint': checkpoint,
+    method.meta = {'method': 'marigold_dc_norm' if normalize else 'marigold_dc', 'normalize': normalize, 'steps': steps, 'dtype': str(dtype), 'checkpoint': checkpoint,
                    'revision': revision, 'marigold_dc_commit': 'c6d756b2873ce4022bb44eb21b933f198f1b0fe1'}
     return method
