@@ -248,11 +248,13 @@ def make_marigold_dc_method(device, dtype=torch.bfloat16, steps=50, checkpoint=M
     return method
 
 
-def make_hifidc_v2_method(config, device, normals_dir=None, checkpoint=MARIGOLD_CHECKPOINT, revision=MARIGOLD_REVISION):
+def make_hifidc_v2_method(config, device, normals_dir=None, checkpoint=MARIGOLD_CHECKPOINT, revision=MARIGOLD_REVISION,
+                          live_dsine=False):
     """HiFi-DC v2 (hifidc.v2.pipeline) with Marigold-DC's loading and scheduler conventions.
 
     Normals arrive through the method argument; DSINE kappa is read from
     ``normals_dir / f'{stem}_kappa.npy'`` when present. Feeds metres, returns native units.
+    live_dsine=True runs DSINE inside the (timed) call instead of using cached normals/kappa.
     """
     configure_determinism()
     from diffusers import DDIMScheduler
@@ -262,6 +264,10 @@ def make_hifidc_v2_method(config, device, normals_dir=None, checkpoint=MARIGOLD_
     pipe = HiFiDCv2Pipeline.from_pretrained(checkpoint, revision=revision, prediction_type='depth').to(device, dtype=dtype)
     pipe.scheduler = DDIMScheduler.from_config(pipe.scheduler.config, timestep_spacing='trailing')
     counter = UNetCallCounter(pipe.unet)
+    dsine = None
+    if live_dsine:
+        from .dsine import default_dsine_paths, load_local_dsine_model
+        dsine = load_local_dsine_model(*default_dsine_paths(), device)
 
     def method(scene, normals, seed, resolution):
         counter.calls = 0
@@ -270,6 +276,11 @@ def make_hifidc_v2_method(config, device, normals_dir=None, checkpoint=MARIGOLD_
         if normals_dir is not None:
             path = Path(normals_dir) / f'{scene.spec.stem}_kappa.npy'
             kappa = np.load(path) if path.is_file() else None
+        if dsine is not None:
+            from .dsine import dsine_infer
+            output = dsine_infer(dsine[0], dsine[1], Image.fromarray(scene.rgb), device)
+            normals = torch.nn.functional.normalize(output[:, :3], dim=1)[0].permute(1, 2, 0).float().cpu().numpy()
+            kappa = output[0, 3].float().cpu().numpy() if output.shape[1] > 3 else None
         result = pipe(image=Image.fromarray(scene.rgb), sparse_depth=(scene.sparse * to_m).astype(np.float32),
                       config=config, seed=seed, processing_resolution=resolution, normals=normals, kappa=kappa,
                       intrinsics=scene.spec.intrinsics, return_details=True)
@@ -277,5 +288,5 @@ def make_hifidc_v2_method(config, device, normals_dir=None, checkpoint=MARIGOLD_
                                                                       'trace': result['trace']}
 
     method.meta = {'method': 'hifidc_v2', 'config': asdict(config), 'config_sha256': sha256_json(asdict(config)),
-                   'checkpoint': checkpoint, 'revision': revision, 'dtype': config.dtype}
+                   'checkpoint': checkpoint, 'revision': revision, 'dtype': config.dtype, 'live_dsine': live_dsine}
     return method

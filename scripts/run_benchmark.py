@@ -41,6 +41,8 @@ def main(argv=None):
     parser.add_argument('--only', nargs='*', default=None, help='Restrict to these scene stems')
     parser.add_argument('--out', required=True)
     parser.add_argument('--overwrite', action='store_true')
+    parser.add_argument('--live-dsine', action='store_true',
+                        help='hifidc_v2: run DSINE inside the timed call instead of using cached normals')
     parser.add_argument('--fast-attention', action='store_true',
                         help='Keep fused SDPA kernels (less memory, but runs are not bit-repeatable)')
     args = parser.parse_args(argv)
@@ -71,7 +73,9 @@ def main(argv=None):
     elif args.method == 'hifidc_v2':
         v2_config = load_dataclass(V2Config, args.v2_config, parse_overrides(args.override))
         normals_dir = Path(args.normals) if Path(args.normals).is_dir() else None
-        method = make_hifidc_v2_method(v2_config, device, normals_dir=normals_dir)
+        method = make_hifidc_v2_method(v2_config, device, normals_dir=normals_dir, live_dsine=args.live_dsine)
+        if args.live_dsine:
+            normals_dir = None
     else:
         method = make_marigold_dc_method(device, steps=args.mdc_steps, normalize=args.method == 'marigold_dc_norm')
         normals_dir = None
