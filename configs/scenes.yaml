@@ -1,0 +1,77 @@
+# 10-scene diagnostic set (data/test/, kept out of git). One entry per scene.
+#   to_metres            native unit -> metres, used only to feed the method (its hyper-parameters
+#                        assume metres). Metrics stay in native units, per scene.
+#   invalid_at_or_above  sentinel / far cap removed from BOTH sparse input and GT (null = none).
+#   unit_uncertain       the unit is a guess; report scale-free AbsRel / delta1 / si-log as headline.
+# Sources are inferred from file names and value ranges, not verified labels.
+scenes:
+  - stem: "2011_10_03_drive_0047_sync_0000000791_03"
+    source: kitti
+    to_metres: 0.00390625
+    invalid_at_or_above: null
+    unit_uncertain: false
+    outdoor: true
+    note: "KITTI uint16/256 convention: max 20444/256 = 79.9 m (KITTI 80 m cap). DATA.md says mm. GT semi-dense (~17%)."
+  - stem: "Scene20_00836"
+    source: vkitti2
+    to_metres: 0.01
+    invalid_at_or_above: 65535
+    unit_uncertain: false
+    outdoor: true
+    note: "Virtual KITTI 2 depth in cm; 65535 = sky. 247/1000 sparse inputs are the sentinel."
+  - stem: "3FO4MMLDUKDJ_Living_room_8"
+    source: interiornet
+    to_metres: 0.001
+    invalid_at_or_above: null
+    unit_uncertain: false
+    outdoor: false
+    note: "InteriorNet uint16 mm (1.0-4.8 m)."
+  - stem: "ai_055_004_90"
+    source: hypersim
+    to_metres: 0.0392156863
+    invalid_at_or_above: null
+    unit_uncertain: true
+    outdoor: false
+    note: "Values 30-215 with 123 levels: looks like an 8-bit encoding; guessed 10 m / 255."
+  - stem: "market_2_frame_0017"
+    source: sintel
+    to_metres: 1.0
+    invalid_at_or_above: 100
+    unit_uncertain: false
+    outdoor: false
+    note: "MPI-Sintel float depth; 100 = far cap (10 sparse inputs sit on it)."
+  - stem: "office_4_1240"
+    source: icl_nuim
+    to_metres: 0.0002
+    invalid_at_or_above: null
+    unit_uncertain: true
+    outdoor: false
+    note: "Guessed TUM/ICL-NUIM 1/5000 (median 2.4 m); Replica 1/6553.5 is the alternative. 377 levels."
+  - stem: "student_lounge_0001_out_379"
+    source: nyuv2
+    to_metres: 0.0392156863
+    invalid_at_or_above: null
+    unit_uncertain: true
+    outdoor: false
+    note: "Values 53-148 with 96 levels: looks like an 8-bit encoding; guessed 10 m / 255."
+  - stem: "study_room_0004_out_305"
+    source: nyuv2
+    to_metres: 0.0392156863
+    invalid_at_or_above: null
+    unit_uncertain: true
+    outdoor: false
+    note: "Values 37-254 with 218 levels: looks like an 8-bit encoding; guessed 10 m / 255."
+  - stem: "visionlab1_1552089403.9210"
+    source: void
+    to_metres: 0.00390625
+    invalid_at_or_above: null
+    unit_uncertain: false
+    outdoor: false
+    note: "VOID uint16/256 convention (median 2.3 m)."
+  - stem: "workbench0_1551915136.1459"
+    source: void
+    to_metres: 0.00390625
+    invalid_at_or_above: null
+    unit_uncertain: false
+    outdoor: false
+    note: "VOID uint16/256 convention (median 0.74 m). GT 79% filled."
