@@ -49,4 +49,4 @@ def test_postfilter_run_writes_comparable_run(tmp_path):
     row = next(csv.DictReader(open(out / "metrics.csv")))
     expected = float(np.mean(np.abs(filtered - gt) / gt))
     assert abs(float(row["abs_rel"]) - expected) < 1e-6 and float(row["seconds"]) >= 1.0
-    assert json.loads((out / "manifest.json").read_text())["post_filter"]["radius"] == 4
+    assert json.loads((out / "manifest.json").read_text())["post_filter"]["radius"] == 2

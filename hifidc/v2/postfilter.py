@@ -16,7 +16,7 @@ def _box(x, r):
     return F.avg_pool2d(F.pad(x, (r, r, r, r), mode='replicate'), 2 * r + 1, stride=1)
 
 
-def guided_log_depth(depth, rgb, radius=4, eps=1e-3):
+def guided_log_depth(depth, rgb, radius=2, eps=1e-3):
     """depth (H, W) > 0 (non-positive values are floored), rgb (H, W, 3) uint8 -> filtered depth (H, W) float32."""
     depth = np.asarray(depth, np.float64)
     positive = depth[np.isfinite(depth) & (depth > 0)]

@@ -29,7 +29,7 @@ class V2Config:
     field_start: float = 0.3
     # L6: RGB-guided edge-aware filter on the final log-depth ('none' or 'guided').
     post_filter: str = 'none'
-    filter_radius: int = 4
+    filter_radius: int = 2
     filter_eps: float = 1e-3
 
     def validate(self):

@@ -1,6 +1,6 @@
 """Apply the L6 guided filter to a finished run's predictions and write a new, comparable run.
 
-  python scripts/postfilter_run.py results/ref_mdcnorm_384_s2024 results/v2_L1F_dev50_384 [--radius 4 --eps 1e-3]
+  python scripts/postfilter_run.py results/ref_mdcnorm_384_s2024 results/v2_L1F_dev50_384 [--radius 2 --eps 1e-3]
 
 Rebuilds the run's cases (same --cases as the source run), filters every saved prediction, and writes
 pred/, metrics.csv (metrics recomputed; seconds include the filter time), summary.json and a manifest
@@ -31,7 +31,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('source')
     parser.add_argument('out')
-    parser.add_argument('--radius', type=int, default=4)
+    parser.add_argument("--radius", type=int, default=2)
     parser.add_argument('--eps', type=float, default=1e-3)
     parser.add_argument('--scenes', default=str(ROOT / 'configs' / 'scenes.yaml'))
     parser.add_argument('--data', default=str(ROOT / 'data' / 'test'))
