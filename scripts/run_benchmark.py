@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from hifidc.bench import (configure_determinism, make_hifidc_method, make_hifidc_v2_method,  # noqa: E402
-                          make_marigold_dc_method,
+                          make_marigold_dc_method, make_marigold_ls_method,
                           run_benchmark, sha256_json)
 from hifidc.config import load_config, load_dataclass, parse_overrides  # noqa: E402
 from hifidc.v2.config import V2Config  # noqa: E402
@@ -25,7 +25,8 @@ from hifidc.data import load_manifest, load_scene  # noqa: E402
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--method', choices=['hifidc', 'hifidc_v2', 'marigold_dc', 'marigold_dc_norm'], required=True)
+    parser.add_argument('--method', choices=['hifidc', 'hifidc_v2', 'marigold_dc', 'marigold_dc_norm', 'marigold_ls',
+                                             'marigold_ls_field'], required=True)
     parser.add_argument('--config', default=str(ROOT / 'configs' / 'paper_v1.yaml'))
     parser.add_argument('--override', action='append', default=[], metavar='KEY=VALUE')
     parser.add_argument('--v2-config', default=str(ROOT / 'configs' / 'v2' / 'L0.yaml'),
@@ -76,6 +77,9 @@ def main(argv=None):
         method = make_hifidc_v2_method(v2_config, device, normals_dir=normals_dir, live_dsine=args.live_dsine)
         if args.live_dsine:
             normals_dir = None
+    elif args.method in ('marigold_ls', 'marigold_ls_field'):
+        method = make_marigold_ls_method(device, steps=args.mdc_steps, field=args.method == 'marigold_ls_field')
+        normals_dir = None
     else:
         method = make_marigold_dc_method(device, steps=args.mdc_steps, normalize=args.method == 'marigold_dc_norm')
         normals_dir = None

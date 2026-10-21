@@ -248,6 +248,38 @@ def make_marigold_dc_method(device, dtype=torch.bfloat16, steps=50, checkpoint=M
     return method
 
 
+def make_marigold_ls_method(device, steps=50, field=False, dtype=torch.bfloat16, checkpoint=MARIGOLD_CHECKPOINT,
+                            revision=MARIGOLD_REVISION):
+    """Marigold monocular depth (no guidance) + closed-form fit to the sparse points.
+
+    field=False: global least-squares affine (what the inert v1 produced). field=True: plus the L4
+    low-frequency residual field. Same checkpoint, dtype and trailing DDIM as Marigold-DC.
+    """
+    configure_determinism()
+    from diffusers import DDIMScheduler, MarigoldDepthPipeline
+    from PIL import Image
+    from .v2.prior_fit import fit_prior_to_sparse
+    pipe = MarigoldDepthPipeline.from_pretrained(checkpoint, revision=revision, prediction_type='depth').to(device, dtype=dtype)
+    pipe.scheduler = DDIMScheduler.from_config(pipe.scheduler.config, timestep_spacing='trailing')
+    pipe.set_progress_bar_config(disable=True)
+    counter = UNetCallCounter(pipe.unet)
+
+    def method(scene, normals, seed, resolution):
+        counter.calls = 0
+        to_m = scene.spec.to_metres
+        generator = torch.Generator(device=device).manual_seed(seed)
+        out = pipe(Image.fromarray(scene.rgb), num_inference_steps=steps, ensemble_size=1,
+                   processing_resolution=resolution, match_input_resolution=True, generator=generator,
+                   output_type='np')
+        rel = np.asarray(out.prediction, dtype=np.float32).reshape(scene.sparse.shape)
+        pred = fit_prior_to_sparse(rel, scene.sparse * to_m, field=field)
+        return pred / to_m, {'unet_calls': counter.calls}
+
+    method.meta = {'method': 'marigold_ls_field' if field else 'marigold_ls', 'steps': steps, 'field': field,
+                   'dtype': str(dtype), 'checkpoint': checkpoint, 'revision': revision}
+    return method
+
+
 def make_hifidc_v2_method(config, device, normals_dir=None, checkpoint=MARIGOLD_CHECKPOINT, revision=MARIGOLD_REVISION,
                           live_dsine=False):
     """HiFi-DC v2 (hifidc.v2.pipeline) with Marigold-DC's loading and scheduler conventions.
