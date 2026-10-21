@@ -77,3 +77,14 @@ def test_without_normalisation_units_matter(tiny_v2_pipeline):
     metres = run(tiny_v2_pipeline, config=V2Config(steps=3), sparse=sparse)['depth']
     millimetres = run(tiny_v2_pipeline, config=V2Config(steps=3), sparse=sparse * 1000)['depth']
     assert not np.allclose(millimetres, metres * 1000, rtol=1e-4)
+
+
+def test_robust_anchor_resists_an_outlier(tiny_v2_pipeline):
+    sparse = sparse_grid(32, 48)
+    corrupted = sparse.copy()
+    corrupted[0, 0] = 50.0  # one gross outlier among 96 points in [0.2, 2]
+    clean = run(tiny_v2_pipeline, config=V2Config(steps=4, robust='huber'), sparse=sparse)['depth']
+    robust = run(tiny_v2_pipeline, config=V2Config(steps=4, robust='huber'), sparse=corrupted)['depth']
+    plain = run(tiny_v2_pipeline, config=V2Config(steps=4), sparse=corrupted)['depth']
+    assert np.isfinite(robust).all()
+    assert np.abs(robust - clean).mean() < np.abs(plain - clean).mean()

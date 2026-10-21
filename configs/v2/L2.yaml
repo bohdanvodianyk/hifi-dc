@@ -1,0 +1,8 @@
+# L2 = L1 + Huber-robust sparse anchor (MAD scale).
+steps: 50
+latent_lr: 0.05
+affine_lr: 0.005
+dtype: bfloat16
+normalize_input: true
+robust: huber
+huber_k: 1.345

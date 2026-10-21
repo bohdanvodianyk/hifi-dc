@@ -14,6 +14,7 @@ import torch
 from diffusers import MarigoldDepthPipeline
 
 from .config import V2Config
+from .robust import robust_l1l2
 from .units import normalize_sparse
 
 
@@ -103,6 +104,8 @@ class HiFiDCv2Pipeline(MarigoldDepthPipeline):
         return self.image_processor.resize_antialias(prediction, state['original_resolution'], 'bilinear', is_aa=False)
 
     def _guidance_loss(self, prediction, state, index, config):
-        """L0: L1 + L2 at the sparse points."""
+        """L0: L1 + L2 at the sparse points; L2 rung: Huber-weighted."""
         predicted, target = prediction[state['mask']], state['sparse'][state['mask']]
+        if config.robust == 'huber':
+            return robust_l1l2(predicted, target, config.huber_k)
         return torch.nn.functional.l1_loss(predicted, target) + torch.nn.functional.mse_loss(predicted, target)
