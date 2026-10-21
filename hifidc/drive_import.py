@@ -5,7 +5,7 @@ Expected layout (one folder per dataset):
     <root>/output_<name>/rgb/<stem>.(png|jpg)
     <root>/output_<name>/npy_sparse_depth/<stem>.npy
     <root>/output_<name>/npy_ground_truth/<stem>.npy
-    <root>/output_<name>/validity_map/<stem>.(npy|png)      optional; nonzero = valid GT
+    <root>/output_<name>/validity_map/<stem>.(npy|png)      ignored: VOID-style mask of the sparse points
 
 Selection draws whole *sequences* first (one frame per sequence while there are enough), so the
 held-out test set does not contain near-duplicate frames, keeps test and dev sequences disjoint,
@@ -32,11 +32,15 @@ DATASETS = {
     'vkitti': dict(source='vkitti2', to_metres=0.01, invalid_at_or_above=65535, unit_uncertain=False, outdoor=True,
                    intrinsics=[725.0087, 725.0087, 620.5, 187.0], note='Virtual KITTI 2 cm; 65535 = sky.'),
     'nyu': dict(source='nyuv2', to_metres=10 / 255, invalid_at_or_above=None, unit_uncertain=True, outdoor=False,
-                intrinsics=[518.8579, 519.4696, 325.5824, 253.7362], note='Looks 8-bit; guessed 10 m / 255.'),
+                intrinsics=[518.8579, 519.4696, 325.5824, 253.7362], note='Looks 8-bit; guessed 10 m / 255.',
+                overrides=[(r'^nyu2_test_', dict(to_metres=0.001, unit_uncertain=False,
+                                                    note='NYUv2 labelled test frame, uint16 mm.'))]),
     'void': dict(source='void', to_metres=1 / 256, invalid_at_or_above=None, unit_uncertain=False, outdoor=False,
                  intrinsics=None, note='VOID uint16/256.'),
     'hypersim': dict(source='hypersim', to_metres=10 / 255, invalid_at_or_above=None, unit_uncertain=True,
-                     outdoor=False, intrinsics=None, note='Looks 8-bit; guessed 10 m / 255.'),
+                     outdoor=False, intrinsics=None,
+                     note='Per-image normalised 8-bit encoding (every frame spans 30-215): not metric, affine-distorted; '
+                          'report separately.'),
     'interiornet': dict(source='interiornet', to_metres=0.001, invalid_at_or_above=None, unit_uncertain=False,
                         outdoor=False, intrinsics=[600.0, 600.0, 320.0, 240.0], note='InteriorNet mm.'),
     'icl': dict(source='icl_nuim', to_metres=0.0002, invalid_at_or_above=None, invalid_below=500,
@@ -135,6 +139,15 @@ def select_cases(stems_by_dataset, n_test, n_dev, seed, exclude):
     return selection
 
 
+def scene_meta(name, stem):
+    """Dataset defaults with any stem-pattern override applied (e.g. NYU mm test frames vs 8-bit frames)."""
+    meta = {k: v for k, v in DATASETS[name].items() if k != 'overrides'}
+    for pattern, override in DATASETS[name].get('overrides', []):
+        if re.search(pattern, stem):
+            meta.update(override)
+    return meta
+
+
 def _load_array(path):
     if path.suffix.lower() == '.npy':
         array = np.load(path, allow_pickle=False)
@@ -154,11 +167,6 @@ def _import_one(base, stem, files, data_dir):
         raise ValueError(f'shape mismatch rgb {rgb.shape[:2]}, sparse {sparse.shape}, gt {gt.shape}')
     sparse = np.where(np.isfinite(sparse), sparse, 0).astype(np.float32)
     gt = np.where(np.isfinite(gt), gt, 0).astype(np.float32)
-    if files.get('validity'):
-        valid = _load_array(base / 'validity_map' / files['validity'])
-        if valid.shape != gt.shape:
-            raise ValueError(f'validity map shape {valid.shape} != gt {gt.shape}')
-        gt = np.where(valid > 0, gt, 0).astype(np.float32)
     Image.fromarray(rgb).save(data_dir / f'{stem}_rgb.png')
     np.save(data_dir / f'{stem}_sparse.npy', sparse)
     np.save(data_dir / f'{stem}_gt.npy', gt)
@@ -199,7 +207,7 @@ def import_selection(root, selection, out_dir):
                 record['skipped'].append([name, stem, str(error)])
                 continue
             record['stats'][stem] = dict(stats, dataset=name, split=split)
-            meta = DATASETS[name]
+            meta = scene_meta(name, stem)
             entry = {'stem': stem, 'source': meta['source'], 'to_metres': float(meta['to_metres']),
                      'invalid_at_or_above': meta['invalid_at_or_above'], 'unit_uncertain': meta['unit_uncertain'],
                      'outdoor': meta['outdoor'], 'note': meta['note']}

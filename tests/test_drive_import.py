@@ -85,6 +85,14 @@ def test_import_selection_writes_loadable_scenes_and_manifest(tmp_path):
     assert kitti.to_metres == DATASETS['kitti']['to_metres'] and kitti.intrinsics is not None
     scene = load_scene(out / 'data', kitti)
     assert scene.gt.dtype == np.float32 and scene.gt.shape == (24, 32)
-    assert not scene.valid_gt[0].any() and scene.valid_gt[1:].all()     # validity map applied to GT
+    assert scene.valid_gt.all()          # validity_map marks the sparse points; it must not cut the GT
     assert json.loads((out / 'selection.json').read_text())['test'] == [list(x) for x in selection['test']]
     assert len(yaml.safe_load(paths['dev'].read_text())['scenes']) == 2
+
+
+def test_unit_overrides_by_stem_pattern():
+    from hifidc.drive_import import scene_meta
+    assert scene_meta('nyu', 'nyu2_test_00556')['to_metres'] == 0.001
+    assert scene_meta('nyu', 'nyu2_test_00556')['unit_uncertain'] is False
+    assert abs(scene_meta('nyu', 'bedroom_0004_out_182')['to_metres'] - 10 / 255) < 1e-12
+    assert scene_meta('kitti', '2011_09_26_drive_0020_sync_0000000056_03')['to_metres'] == 1 / 256
