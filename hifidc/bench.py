@@ -30,18 +30,26 @@ CSV_COLUMNS = (['stem', 'source', 'seed', 'status', 'message'] + METRIC_KEYS
                + ['anchor_residual', 'seconds', 'peak_vram_gb', 'unet_calls', 'unit_uncertain', 'outdoor'])
 
 
-def configure_determinism():
+def configure_determinism(deterministic_attention=None):
     """Make repeated GPU runs bit-identical; call before any CUDA/cuBLAS work.
 
     warn_only: the only flagged kernel here (area-pool backward in the normal loss) accumulates
-    atomically only when pooling windows overlap, which our 16-multiple grids never produce;
-    tests/test_gpu_smoke.py::test_repeat_runs_are_bit_identical checks the outcome.
+    atomically only when pooling windows overlap, which our 16-multiple grids never produce.
+    Fused SDPA (flash / memory-efficient) backward is NOT flagged by PyTorch but differs between
+    processes, so attention is forced to the math kernel. That costs memory at high resolution;
+    set HIFIDC_DETERMINISTIC_ATTENTION=0 (or pass False) to keep the fused kernels.
     TF32 defaults are left unchanged (and recorded).
     """
+    if deterministic_attention is None:
+        deterministic_attention = os.environ.get('HIFIDC_DETERMINISTIC_ATTENTION', '1') != '0'
     os.environ.setdefault('CUBLAS_WORKSPACE_CONFIG', ':4096:8')
     torch.use_deterministic_algorithms(True, warn_only=True)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+    for enable in (torch.backends.cuda.enable_flash_sdp, torch.backends.cuda.enable_mem_efficient_sdp,
+                   torch.backends.cuda.enable_cudnn_sdp):
+        enable(not deterministic_attention)
+    torch.backends.cuda.enable_math_sdp(True)
     return determinism_state()
 
 
@@ -52,7 +60,9 @@ def determinism_state():
             'cudnn_deterministic': torch.backends.cudnn.deterministic,
             'cudnn_benchmark': torch.backends.cudnn.benchmark,
             'cudnn_allow_tf32': torch.backends.cudnn.allow_tf32,
-            'matmul_allow_tf32': torch.backends.cuda.matmul.allow_tf32}
+            'matmul_allow_tf32': torch.backends.cuda.matmul.allow_tf32,
+            'sdpa_math_only': not (torch.backends.cuda.flash_sdp_enabled() or torch.backends.cuda.mem_efficient_sdp_enabled()
+                                   or torch.backends.cuda.cudnn_sdp_enabled())}
 
 
 def git_state(root=REPO_ROOT):

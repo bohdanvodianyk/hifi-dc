@@ -63,3 +63,31 @@ def test_repeat_runs_are_bit_identical():
     assert np.array_equal(first, second)
     del method
     torch.cuda.empty_cache()
+
+
+CHILD = """
+import sys, numpy as np, torch
+sys.path.insert(0, {root!r})
+from hifidc.bench import configure_determinism, make_hifidc_method
+from hifidc.config import load_config
+from hifidc.data import load_manifest, load_scene
+configure_determinism()
+spec = next(s for s in load_manifest({root!r} + "/configs/scenes.yaml") if s.stem == {stem!r})
+scene = load_scene({root!r} + "/data/test", spec)
+normals = np.load({root!r} + "/cache/normals/" + {stem!r} + "_normals.npy")
+method = make_hifidc_method(load_config({root!r} + "/configs/paper_v1.yaml"), torch.device("cuda"))
+pred, _ = method(scene, normals, 2024, 384)  # paper config at the local baseline resolution
+np.save(sys.argv[1], pred)
+"""
+
+
+def test_repeat_runs_are_bit_identical_across_processes(tmp_path):
+    import subprocess
+    import sys
+    code = CHILD.format(root=str(ROOT), stem=STEM)
+    outputs = []
+    for i in range(2):
+        out = tmp_path / f"run{i}.npy"
+        subprocess.run([sys.executable, "-c", code, str(out)], check=True, capture_output=True)
+        outputs.append(np.load(out))
+    assert np.array_equal(*outputs)

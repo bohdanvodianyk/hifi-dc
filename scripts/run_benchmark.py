@@ -5,6 +5,7 @@
   python scripts/run_benchmark.py --method marigold_dc --resolution 768 --out results/mdc_768
 """
 import argparse
+import os
 from pathlib import Path
 import sys
 
@@ -33,7 +34,11 @@ def main(argv=None):
     parser.add_argument('--only', nargs='*', default=None, help='Restrict to these scene stems')
     parser.add_argument('--out', required=True)
     parser.add_argument('--overwrite', action='store_true')
+    parser.add_argument('--fast-attention', action='store_true',
+                        help='Keep fused SDPA kernels (less memory, but runs are not bit-repeatable)')
     args = parser.parse_args(argv)
+    if args.fast_attention:
+        os.environ['HIFIDC_DETERMINISTIC_ATTENTION'] = '0'
     configure_determinism()
 
     specs = load_manifest(args.scenes)

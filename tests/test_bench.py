@@ -107,3 +107,20 @@ def test_configure_determinism_sets_flags_and_manifest_records_them(tmp_path):
         assert "cudnn_allow_tf32" in recorded and "matmul_allow_tf32" in recorded
     finally:
         torch.use_deterministic_algorithms(False)
+
+
+def test_determinism_forces_math_attention_unless_disabled():
+    from hifidc.bench import configure_determinism
+    cuda = torch.backends.cuda
+    try:
+        state = configure_determinism()
+        assert not cuda.flash_sdp_enabled() and not cuda.mem_efficient_sdp_enabled() and not cuda.cudnn_sdp_enabled()
+        assert cuda.math_sdp_enabled() and state["sdpa_math_only"] is True
+        state = configure_determinism(deterministic_attention=False)
+        assert cuda.flash_sdp_enabled() and cuda.mem_efficient_sdp_enabled()
+        assert state["sdpa_math_only"] is False
+    finally:
+        torch.use_deterministic_algorithms(False)
+        cuda.enable_flash_sdp(True)
+        cuda.enable_mem_efficient_sdp(True)
+        cuda.enable_cudnn_sdp(True)

@@ -42,5 +42,8 @@ into the local `results/` directory (git-ignored). Compare with local runs by re
 - *CUDA initialisation fails after installing torch*: the Colab driver may be older than the cu128
   wheel needs. Re-run with `TORCH_INDEX=https://download.pytorch.org/whl/cu126` in the environment
   (cell 4: `os.environ['TORCH_INDEX'] = ...`); this is recorded in each run's manifest.
-- *A scene shows `oom`*: the run continues; lower the resolution for that spec or use an 80 GB A100.
+- *A scene shows `oom`*: the run continues. Runs are bit-repeatable because attention is forced to
+  PyTorch's math kernel, which needs more memory at 768 px. Prefer an 80 GB A100; otherwise set
+  `os.environ['HIFIDC_DETERMINISTIC_ATTENTION'] = '0'` in cell 4 (fused attention: less memory,
+  repeats then differ slightly — recorded as `sdpa_math_only: false` in `manifest.json`).
 - Dry run anywhere: `bash scripts/colab_run.sh --dry-run v2-dev hifidc:768:2024` prints every command.
