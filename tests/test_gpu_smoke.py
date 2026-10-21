@@ -50,3 +50,16 @@ def test_marigold_dc_smoke_128px():
     assert info['unet_calls'] == 6
     del method
     torch.cuda.empty_cache()
+
+
+def test_repeat_runs_are_bit_identical():
+    from hifidc.bench import configure_determinism, make_hifidc_method
+    from hifidc.config import load_config
+    configure_determinism()
+    scene, normals = load()
+    method = make_hifidc_method(load_config(ROOT / "configs" / "paper_v1.yaml", {"steps": 12}), torch.device("cuda"))
+    first, _ = method(scene, normals, 2024, 192)
+    second, _ = method(scene, normals, 2024, 192)
+    assert np.array_equal(first, second)
+    del method
+    torch.cuda.empty_cache()

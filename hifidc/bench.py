@@ -9,6 +9,7 @@ import csv
 import gc
 import hashlib
 import json
+import os
 import platform
 import subprocess
 import sys
@@ -27,6 +28,31 @@ MARIGOLD_REVISION = 'f4fc453d7d217cbe30ddcad3eb311d1ad9a11c4c'
 METRIC_KEYS = ['abs_rel', 'sq_rel', 'rmse', 'mae', 'delta1', 'si_log_rmse', 'frac_pred_nonpositive', 'n_valid']
 CSV_COLUMNS = (['stem', 'source', 'seed', 'status', 'message'] + METRIC_KEYS
                + ['anchor_residual', 'seconds', 'peak_vram_gb', 'unet_calls', 'unit_uncertain', 'outdoor'])
+
+
+def configure_determinism():
+    """Make repeated GPU runs bit-identical; call before any CUDA/cuBLAS work.
+
+    warn_only: the only flagged kernel here (area-pool backward in the normal loss) accumulates
+    atomically only when pooling windows overlap, which our 16-multiple grids never produce;
+    tests/test_gpu_smoke.py::test_repeat_runs_are_bit_identical checks the outcome.
+    TF32 defaults are left unchanged (and recorded).
+    """
+    os.environ.setdefault('CUBLAS_WORKSPACE_CONFIG', ':4096:8')
+    torch.use_deterministic_algorithms(True, warn_only=True)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    return determinism_state()
+
+
+def determinism_state():
+    return {'deterministic_algorithms': torch.are_deterministic_algorithms_enabled(),
+            'deterministic_warn_only': torch.is_deterministic_algorithms_warn_only_enabled(),
+            'cublas_workspace_config': os.environ.get('CUBLAS_WORKSPACE_CONFIG'),
+            'cudnn_deterministic': torch.backends.cudnn.deterministic,
+            'cudnn_benchmark': torch.backends.cudnn.benchmark,
+            'cudnn_allow_tf32': torch.backends.cudnn.allow_tf32,
+            'matmul_allow_tf32': torch.backends.cuda.matmul.allow_tf32}
 
 
 def git_state(root=REPO_ROOT):
@@ -86,6 +112,7 @@ def run_benchmark(method, scenes, normals_dir, seeds, resolution, out_dir, run_m
     sha, dirty = git_state()
     manifest = {'git_sha': sha, 'git_dirty': dirty, 'run': run_meta, 'resolution': resolution, 'seeds': list(seeds),
                 'scenes': [s.spec.stem for s in scenes], 'versions': environment(),
+                'determinism': determinism_state(),
                 'started': time.strftime('%Y-%m-%dT%H:%M:%S%z'), 'argv': sys.argv}
     (out_dir / 'manifest.json').write_text(json.dumps(manifest, indent=2, default=str))
     rows = []
@@ -146,6 +173,7 @@ class UNetCallCounter:
 
 def make_hifidc_method(config, device, checkpoint=MARIGOLD_CHECKPOINT, revision=MARIGOLD_REVISION):
     """Corrected HiFi-DC v1 (fp32) on the cached-normal path; feeds metres, returns native units."""
+    configure_determinism()
     from PIL import Image
     from .pipeline import MarigoldDepthCompletionPipelineWithNormals
     pipe = MarigoldDepthCompletionPipelineWithNormals.from_pretrained(
@@ -172,6 +200,7 @@ def make_hifidc_method(config, device, checkpoint=MARIGOLD_CHECKPOINT, revision=
 def make_marigold_dc_method(device, dtype=torch.bfloat16, steps=50, checkpoint=MARIGOLD_CHECKPOINT,
                             revision=MARIGOLD_REVISION):
     """Official Marigold-DC (external/Marigold-DC @ c6d756b) with its default settings."""
+    configure_determinism()
     from diffusers import DDIMScheduler
     from PIL import Image
     mdc_root = str(REPO_ROOT / 'external' / 'Marigold-DC')

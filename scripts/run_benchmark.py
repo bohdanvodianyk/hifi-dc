@@ -13,7 +13,8 @@ import torch
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from hifidc.bench import make_hifidc_method, make_marigold_dc_method, run_benchmark, sha256_json  # noqa: E402
+from hifidc.bench import (configure_determinism, make_hifidc_method, make_marigold_dc_method,  # noqa: E402
+                          run_benchmark, sha256_json)
 from hifidc.config import load_config, parse_overrides  # noqa: E402
 from hifidc.data import load_manifest, load_scene  # noqa: E402
 
@@ -33,6 +34,7 @@ def main(argv=None):
     parser.add_argument('--out', required=True)
     parser.add_argument('--overwrite', action='store_true')
     args = parser.parse_args(argv)
+    configure_determinism()
 
     specs = load_manifest(args.scenes)
     if args.only:

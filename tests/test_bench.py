@@ -89,3 +89,21 @@ def test_normals_loaded_per_scene(tmp_path):
 
     run_benchmark(spy, [make_scene('a')], normals_dir, [1], 64, tmp_path / 'run', {})
     assert seen['a'].shape == (8, 8, 3)
+
+
+def test_configure_determinism_sets_flags_and_manifest_records_them(tmp_path):
+    import os
+    from hifidc.bench import configure_determinism
+    try:
+        state = configure_determinism()
+        assert os.environ["CUBLAS_WORKSPACE_CONFIG"] == ":4096:8"
+        assert torch.are_deterministic_algorithms_enabled()
+        assert torch.backends.cudnn.deterministic and not torch.backends.cudnn.benchmark
+        assert state["deterministic_algorithms"] is True
+        out = tmp_path / "run"
+        run_benchmark(fake_method, [make_scene("a")], None, [1], 64, out, {})
+        recorded = json.loads((out / "manifest.json").read_text())["determinism"]
+        assert recorded["deterministic_algorithms"] is True and recorded["cublas_workspace_config"] == ":4096:8"
+        assert "cudnn_allow_tf32" in recorded and "matmul_allow_tf32" in recorded
+    finally:
+        torch.use_deterministic_algorithms(False)
