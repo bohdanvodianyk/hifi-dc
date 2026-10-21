@@ -65,16 +65,24 @@ def edge_metrics(pred, gt, valid, jump=0.1, band=2, min_fill=0.9):
         lp = np.where(ok_pred, np.log(np.where(ok_pred, pred, 1.0)), np.nan).astype(np.float64)
     edges = np.zeros(gt.shape, bool)
     ratios = []
-    for a, b in (((slice(None), slice(1, None)), (slice(None), slice(None, -1))),
-                 ((slice(1, None), slice(None)), (slice(None, -1), slice(None)))):
-        dg = lg[a] - lg[b]
-        dp = lp[a] - lp[b]
-        pair = np.abs(dg) > jump
-        pair &= np.isfinite(dg)
-        edges[a] |= pair
-        edges[b] |= pair
-        use = pair & np.isfinite(dp)
-        ratios.append(np.clip(np.abs(dp[use]) / np.abs(dg[use]), 0, 2))
+    # Jumps are compared over a span of 1.5 grid pixels on each side of the edge pair, so an edge
+    # computed on the 384-px grid and upsampled still counts as sharp; wider blur does not.
+    span = max(1, int(np.ceil(1.5 * max(gt.shape) / 384)))
+    for axis in (1, 0):
+        lg_t, lp_t, e_t = (lg, lp, edges) if axis == 1 else (lg.T, lp.T, edges.T)
+        dg = lg_t[:, 1:] - lg_t[:, :-1]
+        pair = np.isfinite(dg) & (np.abs(dg) > jump)
+        e_t[:, 1:] |= pair
+        e_t[:, :-1] |= pair
+        n = lg_t.shape[1]
+        rows, cols = np.nonzero(pair)                 # pair = (cols, cols + 1)
+        lo, hi = cols - span, cols + 1 + span
+        inside = (lo >= 0) & (hi < n)
+        rows, lo, hi = rows[inside], lo[inside], hi[inside]
+        dg_span = lg_t[rows, hi] - lg_t[rows, lo]
+        dp_span = lp_t[rows, hi] - lp_t[rows, lo]
+        use = np.isfinite(dg_span) & np.isfinite(dp_span) & (np.abs(dg_span) > jump)
+        ratios.append(np.clip(np.abs(dp_span[use]) / np.abs(dg_span[use]), 0, 2))
     ratios = np.concatenate(ratios)
     if not edges.any() or ratios.size == 0:
         return nan

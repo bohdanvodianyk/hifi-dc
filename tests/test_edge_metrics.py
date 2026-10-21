@@ -49,3 +49,14 @@ def test_metric_is_unit_free():
     pred = _blur(gt, 3)
     a, b = edge_metrics(pred, gt, valid), edge_metrics(pred * 1000, gt * 1000, valid)
     assert abs(a['edge_abs_rel'] - b['edge_abs_rel']) < 1e-6 and abs(a['edge_sharpness'] - b['edge_sharpness']) < 1e-6
+
+
+def test_upsampled_but_correct_edge_still_counts_as_sharp():
+    h, w = 120, 640
+    gt = np.full((h, w), 2.0, np.float32)
+    gt[:, 333:] = 5.0                                   # edge not on the coarse grid
+    coarse = torch.from_numpy(gt)[None, None]
+    coarse = F.interpolate(coarse, size=(72, 384), mode="area")
+    pred = F.interpolate(coarse, size=(h, w), mode="bilinear", align_corners=False)[0, 0].numpy()
+    assert edge_metrics(pred, gt, np.ones_like(gt, bool))["edge_sharpness"] > 0.8
+    assert edge_metrics(_blur(gt, 15), gt, np.ones_like(gt, bool))["edge_sharpness"] < 0.6
