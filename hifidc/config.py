@@ -70,20 +70,26 @@ class Config:
 
 
 def load_config(path, overrides=None):
-    """Load a Config from YAML/JSON: either {values: {...}, provenance: {...}} or a flat field mapping.
+    """Load the v1 Config from YAML/JSON: {values: {...}, provenance: {...}} or a flat field mapping."""
+    return load_dataclass(Config, path, overrides)
 
-    Unknown keys (in the file or in overrides) raise ValueError; the result is validated.
+
+def load_dataclass(cls, path, overrides=None):
+    """Load any config dataclass from YAML/JSON ({values: ...} or flat), typed per field.
+
+    Unknown keys (in the file or in overrides) raise ValueError; ``validate()`` runs if defined.
     """
     document = yaml.safe_load(Path(path).read_text(encoding='utf-8'))
     if not isinstance(document, dict):
         raise ValueError(f'{path}: expected a mapping')
     values = dict(document['values'] if 'values' in document else document)
     values.update(overrides or {})
-    types = {f.name: f.type for f in fields(Config)}
+    types = {f.name: f.type for f in fields(cls)}
     unknown = sorted(set(values) - set(types))
     if unknown:
         raise ValueError(f'Unknown config fields: {unknown}')
-    return Config(**{k: _coerce(k, v, types[k]) for k, v in values.items()}).validate()
+    obj = cls(**{k: _coerce(k, v, types[k]) for k, v in values.items()})
+    return obj.validate() if hasattr(obj, 'validate') else obj
 
 
 def _coerce(name, value, kind):

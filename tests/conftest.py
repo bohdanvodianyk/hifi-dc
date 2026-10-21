@@ -68,8 +68,8 @@ def fixture(seed=2024):
     return pipe, backend, rgb, sparse, normal
 
 
-def build_tiny_real_pipeline(directory):
-    """Randomly initialised tiny UNet/VAE/CLIP saved and reloaded through from_pretrained."""
+def tiny_modules(directory):
+    """Randomly initialised tiny UNet, VAE, CLIP text encoder and tokenizer (seeded)."""
     torch.manual_seed(13)
     (directory / 'vocab.json').write_text(json.dumps({'<|startoftext|>': 0, '<|endoftext|>': 1}))
     (directory / 'merges.txt').write_text('#version: 0.2\n')
@@ -86,6 +86,12 @@ def build_tiny_real_pipeline(directory):
                                 up_block_types=('UpBlock2D', 'CrossAttnUpBlock2D'),
                                 block_out_channels=(8, 8), layers_per_block=1, cross_attention_dim=8,
                                 attention_head_dim=2, norm_num_groups=4)
+    return unet, vae, text, tokenizer
+
+
+def build_tiny_real_pipeline(directory):
+    """Randomly initialised tiny UNet/VAE/CLIP saved and reloaded through from_pretrained."""
+    unet, vae, text, tokenizer = tiny_modules(directory)
     pipe = MarigoldDepthCompletionPipelineWithNormals(unet, vae,
                                                       DDIMScheduler(num_train_timesteps=100, clip_sample=False), text, tokenizer)
     model = directory / 'model'
@@ -104,3 +110,17 @@ def sparse_grid(h, w, step=4, low=.2, high=2.):
     rows, cols = len(range(0, h, step)), len(range(0, w, step))
     sparse[::step, ::step] = np.linspace(low, high, rows * cols).reshape(rows, cols)
     return sparse
+
+
+def build_tiny_v2_pipeline(directory):
+    """Tiny random modules in a HiFiDCv2Pipeline with Marigold-DC's trailing DDIM schedule."""
+    from hifidc.v2.pipeline import HiFiDCv2Pipeline
+    unet, vae, text, tokenizer = tiny_modules(directory)
+    scheduler = DDIMScheduler(num_train_timesteps=100, clip_sample=False, timestep_spacing='trailing')
+    return HiFiDCv2Pipeline(unet=unet, vae=vae, scheduler=scheduler, text_encoder=text, tokenizer=tokenizer,
+                            prediction_type='depth').to('cpu')
+
+
+@pytest.fixture
+def tiny_v2_pipeline(tmp_path):
+    return build_tiny_v2_pipeline(tmp_path)

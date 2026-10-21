@@ -23,6 +23,7 @@ class SceneSpec:
     outdoor: bool
     note: str
     invalid_below: float | None = None  # depths below this are invalid (sparse and GT)
+    intrinsics: tuple | None = None     # (fx, fy, cx, cy) in native image pixels; None = unknown
 
 
 @dataclass
@@ -45,7 +46,8 @@ def load_manifest(path):
                                invalid_at_or_above=None if cap is None else float(cap),
                                unit_uncertain=bool(entry['unit_uncertain']), outdoor=bool(entry['outdoor']),
                                note=entry.get('note', ''),
-                               invalid_below=None if entry.get('invalid_below') is None else float(entry['invalid_below'])))
+                               invalid_below=None if entry.get('invalid_below') is None else float(entry['invalid_below']),
+                               intrinsics=None if entry.get('intrinsics') is None else tuple(float(v) for v in entry['intrinsics'])))
     return specs
 
 

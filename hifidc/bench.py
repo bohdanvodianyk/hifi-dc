@@ -246,3 +246,36 @@ def make_marigold_dc_method(device, dtype=torch.bfloat16, steps=50, checkpoint=M
     method.meta = {'method': 'marigold_dc_norm' if normalize else 'marigold_dc', 'normalize': normalize, 'steps': steps, 'dtype': str(dtype), 'checkpoint': checkpoint,
                    'revision': revision, 'marigold_dc_commit': 'c6d756b2873ce4022bb44eb21b933f198f1b0fe1'}
     return method
+
+
+def make_hifidc_v2_method(config, device, normals_dir=None, checkpoint=MARIGOLD_CHECKPOINT, revision=MARIGOLD_REVISION):
+    """HiFi-DC v2 (hifidc.v2.pipeline) with Marigold-DC's loading and scheduler conventions.
+
+    Normals arrive through the method argument; DSINE kappa is read from
+    ``normals_dir / f'{stem}_kappa.npy'`` when present. Feeds metres, returns native units.
+    """
+    configure_determinism()
+    from diffusers import DDIMScheduler
+    from PIL import Image
+    from .v2.pipeline import HiFiDCv2Pipeline
+    dtype = torch.bfloat16 if config.dtype == 'bfloat16' else torch.float32
+    pipe = HiFiDCv2Pipeline.from_pretrained(checkpoint, revision=revision, prediction_type='depth').to(device, dtype=dtype)
+    pipe.scheduler = DDIMScheduler.from_config(pipe.scheduler.config, timestep_spacing='trailing')
+    counter = UNetCallCounter(pipe.unet)
+
+    def method(scene, normals, seed, resolution):
+        counter.calls = 0
+        to_m = scene.spec.to_metres
+        kappa = None
+        if normals_dir is not None:
+            path = Path(normals_dir) / f'{scene.spec.stem}_kappa.npy'
+            kappa = np.load(path) if path.is_file() else None
+        result = pipe(image=Image.fromarray(scene.rgb), sparse_depth=(scene.sparse * to_m).astype(np.float32),
+                      config=config, seed=seed, processing_resolution=resolution, normals=normals, kappa=kappa,
+                      intrinsics=scene.spec.intrinsics, return_details=True)
+        return np.asarray(result['depth'], dtype=np.float32) / to_m, {'unet_calls': counter.calls,
+                                                                      'trace': result['trace']}
+
+    method.meta = {'method': 'hifidc_v2', 'config': asdict(config), 'config_sha256': sha256_json(asdict(config)),
+                   'checkpoint': checkpoint, 'revision': revision, 'dtype': config.dtype}
+    return method

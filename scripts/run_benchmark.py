@@ -14,18 +14,22 @@ import torch
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from hifidc.bench import (configure_determinism, make_hifidc_method, make_marigold_dc_method,  # noqa: E402
+from hifidc.bench import (configure_determinism, make_hifidc_method, make_hifidc_v2_method,  # noqa: E402
+                          make_marigold_dc_method,
                           run_benchmark, sha256_json)
-from hifidc.config import load_config, parse_overrides  # noqa: E402
+from hifidc.config import load_config, load_dataclass, parse_overrides  # noqa: E402
+from hifidc.v2.config import V2Config  # noqa: E402
 from hifidc.cases import dev50, stress48  # noqa: E402
 from hifidc.data import load_manifest, load_scene  # noqa: E402
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--method', choices=['hifidc', 'marigold_dc', 'marigold_dc_norm'], required=True)
+    parser.add_argument('--method', choices=['hifidc', 'hifidc_v2', 'marigold_dc', 'marigold_dc_norm'], required=True)
     parser.add_argument('--config', default=str(ROOT / 'configs' / 'paper_v1.yaml'))
     parser.add_argument('--override', action='append', default=[], metavar='KEY=VALUE')
+    parser.add_argument('--v2-config', default=str(ROOT / 'configs' / 'v2' / 'L0.yaml'),
+                        help='V2Config YAML for --method hifidc_v2 (overrides apply to it)')
     parser.add_argument('--mdc-steps', type=int, default=50, help='Marigold-DC denoising steps')
     parser.add_argument('--scenes', default=str(ROOT / 'configs' / 'scenes.yaml'))
     parser.add_argument('--data', default=str(ROOT / 'data' / 'test'))
@@ -64,10 +68,15 @@ def main(argv=None):
             missing = [s.stem for s in specs if not (normals_dir / f'{s.stem}_normals.npy').is_file()]
             if missing:
                 raise SystemExit(f'missing cached normals for {missing}; run scripts/cache_normals.py first')
+    elif args.method == 'hifidc_v2':
+        v2_config = load_dataclass(V2Config, args.v2_config, parse_overrides(args.override))
+        normals_dir = Path(args.normals) if Path(args.normals).is_dir() else None
+        method = make_hifidc_v2_method(v2_config, device, normals_dir=normals_dir)
     else:
         method = make_marigold_dc_method(device, steps=args.mdc_steps, normalize=args.method == 'marigold_dc_norm')
         normals_dir = None
-    meta = dict(method.meta, overrides=args.override, config_file=args.config,
+    meta = dict(method.meta, overrides=args.override,
+                config_file=args.v2_config if args.method == 'hifidc_v2' else args.config,
                 scenes_file_sha256=sha256_json(Path(args.scenes).read_text()))
     rows = run_benchmark(method, scenes, normals_dir, args.seeds, args.resolution, Path(args.out), meta,
                          overwrite=args.overwrite)

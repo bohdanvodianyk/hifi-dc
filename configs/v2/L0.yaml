@@ -1,0 +1,5 @@
+# L0: Marigold-DC parity (official defaults). Every later rung starts from the last kept one.
+steps: 50
+latent_lr: 0.05
+affine_lr: 0.005
+dtype: bfloat16
