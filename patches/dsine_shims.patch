@@ -1,0 +1,69 @@
+# GeoFuse3D shims for the vendored DSINE checkout.
+#
+# Upstream:  https://github.com/baegwangbin/DSINE.git
+# Commit:    ef0c2afa32b4dd19cb8ca4567c652802cd92591c
+#
+# DSINE itself is NOT vendored into this repository (1.5 GB, third-party, and it
+# carries its own licence). Clone it to external/DSINE at the commit above and apply
+# this patch:
+#
+#     git -C external/DSINE apply ../patches/dsine_geofuse3d_shims.patch
+#
+# What the shims do (see docs/integration_audit.md R6):
+#  1. projects/__init__.py     - upstream hardcodes EXPERIMENT_DIR to a researcher's
+#                                home path; make it overridable via DSINE_EXPERIMENT_DIR.
+#  2. projects/dsine/config.py - upstream get_args() reads sys.argv[1]; accept an
+#                                explicit config_path so it is importable as a library.
+# Neither changes DSINE's numerical behaviour.
+
+diff --git a/projects/__init__.py b/projects/__init__.py
+index 7915618..e458db1 100644
+--- a/projects/__init__.py
++++ b/projects/__init__.py
+@@ -3,8 +3,11 @@
+ import os
+ import argparse
+ 
+-DATASET_DIR = '/media/gwangbin/ssd/datasets/'   # where datasets are stored         NOTE: this should be changed!
+-EXPERIMENT_DIR = '/home/gwangbin/experiments/'  # where to save the experiments     NOTE: this should be changed!
++# --- GEOFUSE3D-SHIM: make the hardcoded upstream paths overridable and default to
++#     writable locations (upstream flagged these "should be changed"). Behavior of
++#     the DSINE model is unaffected; only I/O directories change. ---
++DATASET_DIR = os.environ.get('DSINE_DATASET_DIR', '/media/gwangbin/ssd/datasets/')   # datasets (unused for inference)
++EXPERIMENT_DIR = os.environ.get('DSINE_EXPERIMENT_DIR', '/tmp/dsine_experiments/')    # writable scratch for get_args()
+ PROJECT_DIR = os.path.split(os.path.dirname(os.path.realpath(__file__)))[0]
+ 
+ 
+diff --git a/projects/dsine/config.py b/projects/dsine/config.py
+index 4a9a375..d19c08f 100644
+--- a/projects/dsine/config.py
++++ b/projects/dsine/config.py
+@@ -10,7 +10,10 @@ import logging
+ logger = logging.getLogger('root')
+ 
+ 
+-def get_args(test=False):
++def get_args(test=False, config_path=None):
++    # GEOFUSE3D-SHIM: accept an explicit config_path so callers (e.g. hifi_dc.py)
++    # can load the experiment .txt without hijacking sys.argv. When config_path is
++    # None the original sys.argv[1] behavior is preserved.
+     parser = get_default_parser()
+ 
+     #↓↓↓↓
+@@ -38,9 +41,13 @@ def get_args(test=False):
+     #↑↑↑↑
+ 
+     # read arguments from txt file
+-    assert '.txt' in sys.argv[1]
+-    arg_filename_with_prefix = '@' + sys.argv[1]
+-    args = parser.parse_args([arg_filename_with_prefix] + sys.argv[2:])
++    if config_path is not None:
++        # GEOFUSE3D-SHIM: read only the given config file, ignore sys.argv
++        args = parser.parse_args(['@' + config_path])
++    else:
++        assert '.txt' in sys.argv[1]
++        arg_filename_with_prefix = '@' + sys.argv[1]
++        args = parser.parse_args([arg_filename_with_prefix] + sys.argv[2:])
+ 
+     #↓↓↓↓
+     #NOTE: update args
