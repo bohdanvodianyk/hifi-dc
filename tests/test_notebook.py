@@ -46,3 +46,14 @@ def test_runner_keeps_semicolon_overrides_in_one_spec():
                             capture_output=True, text=True, timeout=60)
     assert result.returncode == 0, result.stderr
     assert '--override steps=6 --override use_normals=false' in result.stdout
+
+
+def test_newdata_notebook_is_regenerated_and_guards_the_test_split():
+    newdata = ROOT / "notebooks" / "colab_newdata.ipynb"
+    notebook = nbformat.read(newdata, as_version=4)
+    nbformat.validate(notebook)
+    source = "\n".join(cell.source for cell in notebook.cells)
+    for expected in ("scripts/import_drive_datasets.py", "--selection", "FINAL_TEST", "scripts/compare_runs.py",
+                     "scripts/visualize_runs.py", "torch==2.8.0", "drive.mount"):
+        assert expected in source, expected
+    assert all(cell.get("outputs", []) == [] for cell in notebook.cells if cell.cell_type == "code")

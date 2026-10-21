@@ -19,7 +19,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from hifidc.cases import dev50, stress48  # noqa: E402
+from hifidc.cases import dev50, stress48, stress_dense  # noqa: E402
 from hifidc.data import load_manifest, load_scene  # noqa: E402
 from hifidc.viz import comparison_figure  # noqa: E402
 
@@ -50,7 +50,7 @@ def main(argv=None):
         raise SystemExit(f'runs use different case sets: {sorted(kinds)}')
     kind = kinds.pop()
     scenes = [load_scene(args.data, s) for s in load_manifest(args.scenes)]
-    cases = {'dev50': dev50, 'stress48': stress48}.get(kind, lambda s: s)(scenes)
+    cases = {'dev50': dev50, 'stress48': stress48, 'stress': stress_dense}.get(kind, lambda s: s)(scenes)
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)

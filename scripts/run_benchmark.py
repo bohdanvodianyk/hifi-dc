@@ -19,7 +19,7 @@ from hifidc.bench import (configure_determinism, make_hifidc_method, make_hifidc
                           run_benchmark, sha256_json)
 from hifidc.config import load_config, load_dataclass, parse_overrides  # noqa: E402
 from hifidc.v2.config import V2Config  # noqa: E402
-from hifidc.cases import dev50, stress48  # noqa: E402
+from hifidc.cases import dev50, stress48, stress_dense  # noqa: E402
 from hifidc.data import load_manifest, load_scene  # noqa: E402
 
 
@@ -37,7 +37,7 @@ def main(argv=None):
     parser.add_argument('--normals', default=str(ROOT / 'cache' / 'normals'))
     parser.add_argument('--resolution', type=int, default=384)
     parser.add_argument('--seeds', type=int, nargs='+', default=[2024])
-    parser.add_argument('--cases', choices=['provided', 'dev50', 'stress48'], default='provided',
+    parser.add_argument('--cases', choices=['provided', 'dev50', 'stress48', 'stress'], default='provided',
                         help='provided sparse inputs, or reproducible resampled cases (hifidc.cases)')
     parser.add_argument('--only', nargs='*', default=None, help='Restrict to these scene stems')
     parser.add_argument('--out', required=True)
@@ -62,6 +62,8 @@ def main(argv=None):
         scenes = dev50(scenes)
     elif args.cases == 'stress48':
         scenes = stress48(scenes)
+    elif args.cases == 'stress':
+        scenes = stress_dense(scenes)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if args.method == 'hifidc':
         config = load_config(args.config, parse_overrides(args.override))

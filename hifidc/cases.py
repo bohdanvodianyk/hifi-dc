@@ -57,3 +57,10 @@ def stress48(scenes):
     return [make_case(scene, pattern, n, outliers)
             for scene in scenes if scene.spec.stem in DENSE_GT_STEMS
             for n, outliers in STRESS_SETTINGS for pattern in (1, 2)]
+
+
+def stress_dense(scenes, min_fill=0.9):
+    """Like stress48, for any scene list: scenes with >= min_fill valid GT x STRESS_SETTINGS x patterns 1-2."""
+    return [make_case(scene, pattern, n, outliers)
+            for scene in scenes if scene.valid_gt.mean() >= min_fill
+            for n, outliers in STRESS_SETTINGS for pattern in (1, 2)]

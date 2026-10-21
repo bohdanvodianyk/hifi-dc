@@ -47,3 +47,21 @@ into the local `results/` directory (git-ignored). Compare with local runs by re
   `os.environ['HIFIDC_DETERMINISTIC_ATTENTION'] = '0'` in cell 4 (fused attention: less memory,
   repeats then differ slightly — recorded as `sdpa_math_only: false` in `manifest.json`).
 - Dry run anywhere: `bash scripts/colab_run.sh --dry-run v2-dev hifidc:768:2024` prints every command.
+
+## New scenes from the Drive datasets (`notebooks/colab_newdata.ipynb`)
+
+Draws new scenes from `main_datasets_new/output_<dataset>/{rgb, npy_sparse_depth, npy_ground_truth,
+validity_map}` and runs the methods on them.
+
+- **Selection** (`scripts/import_drive_datasets.py`, `hifidc/drive_import.py`): per dataset, `N_TEST`
+  test and `N_DEV` dev scenes, one frame per sequence while there are enough sequences; test and dev
+  sequences are disjoint, and sequences of the 10 development scenes are excluded. The draw is saved
+  as `MyDrive/hifidc-v2/<OUT_NAME>/selection.json` and reused by later sessions.
+- **Units** come from per-dataset defaults (`DATASETS` in `hifidc/drive_import.py`, copied from
+  `configs/scenes.yaml`). The import prints GT min/median/max per scene; check them before trusting
+  metric-unit numbers. Headline metrics are scale-free.
+- **Case sets**: `patterns` (5 sparse patterns per scene, as dev50) and `stress` (100 / 300 points and
+  5 % outliers on scenes with >= 90 % GT coverage).
+- **Normals**: upload `dist/dsine_ckpt.tar` (`scripts/pack_dsine_for_drive.sh`) to
+  `MyDrive/hifidc-v2/inputs/`; without it, methods with normal guidance are skipped.
+- **Test split**: develop on `dev`; run `test` once, with the frozen final method (`FINAL_TEST = True`).

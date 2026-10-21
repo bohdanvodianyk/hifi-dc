@@ -89,3 +89,12 @@ def test_runner_writes_case_and_holdout_columns(tmp_path):
     expected = 0.1 * float(case.holdout[case.holdout > 0].astype(np.float64).mean())
     assert abs(float(row['holdout_residual']) - expected) < 1e-5
     assert (tmp_path / 'run' / 'pred' / 'toy__p1_n1000_o0_s7.npy').is_file()
+
+
+def test_stress_dense_picks_scenes_by_gt_coverage():
+    from hifidc.cases import stress_dense
+    dense, sparse_gt = toy_scene("dense", seed=1), toy_scene("semi", seed=2)
+    sparse_gt.valid_gt[:40] = False
+    sparse_gt.gt[:40] = 0
+    cases = stress_dense([dense, sparse_gt])
+    assert {c.spec.stem for c in cases} == {"dense"} and len(cases) == 6
