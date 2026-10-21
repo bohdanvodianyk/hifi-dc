@@ -2,6 +2,7 @@
 #   to_metres            native unit -> metres, used only to feed the method (its hyper-parameters
 #                        assume metres). Metrics stay in native units, per scene.
 #   invalid_at_or_above  sentinel / far cap removed from BOTH sparse input and GT (null = none).
+#   invalid_below        optional lower validity limit (native units), applied to sparse and GT.
 #   unit_uncertain       the unit is a guess; report scale-free AbsRel / delta1 / si-log as headline.
 # Sources are inferred from file names and value ranges, not verified labels.
 scenes:
@@ -46,7 +47,8 @@ scenes:
     invalid_at_or_above: null
     unit_uncertain: true
     outdoor: false
-    note: "Guessed TUM/ICL-NUIM 1/5000 (median 2.4 m); Replica 1/6553.5 is the alternative. 377 levels."
+    invalid_below: 500
+    note: "Guessed TUM/ICL-NUIM 1/5000 (median 2.4 m); Replica 1/6553.5 is the alternative. 377 levels. Depths < 500 native (629 GT px on a 50-unit ladder, 3 anchors) gated as invalid (user decision 2026-10-20)."
   - stem: "student_lounge_0001_out_379"
     source: nyuv2
     to_metres: 0.0392156863

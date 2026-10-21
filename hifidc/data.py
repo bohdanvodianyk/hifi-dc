@@ -22,6 +22,7 @@ class SceneSpec:
     unit_uncertain: bool
     outdoor: bool
     note: str
+    invalid_below: float | None = None  # depths below this are invalid (sparse and GT)
 
 
 @dataclass
@@ -41,7 +42,8 @@ def load_manifest(path):
         specs.append(SceneSpec(stem=str(entry['stem']), source=entry['source'], to_metres=float(entry['to_metres']),
                                invalid_at_or_above=None if cap is None else float(cap),
                                unit_uncertain=bool(entry['unit_uncertain']), outdoor=bool(entry['outdoor']),
-                               note=entry.get('note', '')))
+                               note=entry.get('note', ''),
+                               invalid_below=None if entry.get('invalid_below') is None else float(entry['invalid_below'])))
     return specs
 
 
@@ -50,6 +52,8 @@ def valid_mask(depth, spec):
         valid = np.isfinite(depth) & (depth > 0)
         if spec.invalid_at_or_above is not None:
             valid &= depth < spec.invalid_at_or_above
+        if spec.invalid_below is not None:
+            valid &= depth >= spec.invalid_below
     return valid
 
 

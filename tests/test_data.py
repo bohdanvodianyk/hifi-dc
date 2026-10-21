@@ -94,3 +94,30 @@ def test_manifest_matches_local_data():
         assert scene.rgb.shape[:2] == scene.gt.shape
     scene20 = load_scene(DATA, next(s for s in specs if s.stem == 'Scene20_00836'))
     assert int((scene20.sparse > 0).sum()) == 1000 - 247
+
+
+def test_invalid_below_gates_sparse_and_gt(tmp_path):
+    sparse = np.zeros((4, 4), np.float32)
+    sparse[0, 0], sparse[1, 1] = 45., 600.
+    gt = np.full((4, 4), 700., np.float32)
+    gt[2, 2] = 95.
+    write_scene(tmp_path, "toy", sparse, gt)
+    s = SceneSpec(stem="toy", source="toy", to_metres=1., invalid_at_or_above=None, unit_uncertain=False,
+                  outdoor=False, note="", invalid_below=500.)
+    scene = load_scene(tmp_path, s)
+    assert scene.sparse[0, 0] == 0 and scene.sparse[1, 1] == 600.
+    assert not scene.valid_gt[2, 2] and int(scene.valid_gt.sum()) == 15
+
+
+def test_office4_lower_limit_in_manifest():
+    specs = {s.stem: s for s in load_manifest(SCENES)}
+    assert specs["office_4_1240"].invalid_below == 500
+    assert sum(s.invalid_below is not None for s in specs.values()) == 1
+
+
+@pytest.mark.skipif(not DATA.is_dir(), reason="local 10-scene data not present (CI)")
+def test_office4_low_anchors_removed():
+    spec_ = next(s for s in load_manifest(SCENES) if s.stem == "office_4_1240")
+    scene = load_scene(DATA, spec_)
+    assert int((scene.sparse > 0).sum()) == 997
+    assert float(scene.gt[scene.valid_gt].min()) >= 500
