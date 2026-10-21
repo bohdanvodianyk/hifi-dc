@@ -51,3 +51,29 @@ def test_load_dataclass_typed(tmp_path):
     assert config.steps == 20 and config.latent_lr == 0.05 and config.affine_lr == 1e-3
     with pytest.raises(ValueError, match='bogus'):
         load_dataclass(V2Config, path, {'bogus': 1})
+
+
+def test_l0_default_unchanged(tiny_v2_pipeline):
+    """Default V2Config must reproduce the recorded L0 output (every later rung defaults off)."""
+    import json
+    from pathlib import Path
+    from test_golden import golden_tolerance, platform_fingerprint
+    data = Path(__file__).parent / 'data'
+    rtol, atol = golden_tolerance(json.loads((data / 'golden_platform.json').read_text()), platform_fingerprint())
+    depth = run(tiny_v2_pipeline, config=V2Config(steps=4))['depth']
+    np.testing.assert_allclose(depth, np.load(data / 'v2_l0_tiny.npy'), rtol=rtol, atol=atol)
+
+
+def test_unit_invariance_with_normalisation(tiny_v2_pipeline):
+    sparse = sparse_grid(32, 48)
+    config = V2Config(steps=3, normalize_input=True)
+    metres = run(tiny_v2_pipeline, config=config, sparse=sparse)['depth']
+    millimetres = run(tiny_v2_pipeline, config=config, sparse=sparse * 1000)['depth']
+    np.testing.assert_allclose(millimetres, metres * 1000, rtol=1e-4)
+
+
+def test_without_normalisation_units_matter(tiny_v2_pipeline):
+    sparse = sparse_grid(32, 48)
+    metres = run(tiny_v2_pipeline, config=V2Config(steps=3), sparse=sparse)['depth']
+    millimetres = run(tiny_v2_pipeline, config=V2Config(steps=3), sparse=sparse * 1000)['depth']
+    assert not np.allclose(millimetres, metres * 1000, rtol=1e-4)

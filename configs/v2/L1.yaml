@@ -1,0 +1,6 @@
+# L1 = L0 + unit-free (median-normalised) input.
+steps: 50
+latent_lr: 0.05
+affine_lr: 0.005
+dtype: bfloat16
+normalize_input: true

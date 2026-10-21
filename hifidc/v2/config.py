@@ -10,6 +10,8 @@ class V2Config:
     latent_lr: float = 0.05
     affine_lr: float = 0.005
     dtype: str = 'bfloat16'
+    # L1: divide sparse input by its median before solving (unit-free); rescale the output.
+    normalize_input: bool = False
 
     def validate(self):
         if not isinstance(self.steps, int) or isinstance(self.steps, bool) or self.steps < 1:

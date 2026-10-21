@@ -14,6 +14,7 @@ import torch
 from diffusers import MarigoldDepthPipeline
 
 from .config import V2Config
+from .units import normalize_sparse
 
 
 class HiFiDCv2Pipeline(MarigoldDepthPipeline):
@@ -25,6 +26,9 @@ class HiFiDCv2Pipeline(MarigoldDepthPipeline):
             raise TypeError('image must be a PIL Image')
         if not isinstance(sparse_depth, np.ndarray) or sparse_depth.ndim != 2:
             raise ValueError('Sparse depth should be a 2D numpy ndarray with zeros at missing positions')
+        input_scale = 1.0
+        if config.normalize_input:
+            sparse_depth, input_scale = normalize_sparse(sparse_depth)
         device = self._execution_device
         generator = torch.Generator(device=device).manual_seed(seed)
         state = self._prepare(image, sparse_depth, processing_resolution, generator)
@@ -62,10 +66,12 @@ class HiFiDCv2Pipeline(MarigoldDepthPipeline):
         with torch.no_grad():
             prediction = self._metric(latent.detach(), scale, shift, state)
         depth = self.image_processor.pt_to_numpy(prediction).squeeze()
+        if input_scale != 1.0:
+            depth = depth * input_scale
         self.maybe_free_model_hooks()
         if not return_details:
             return depth
-        return {'depth': depth, 'trace': trace}
+        return {'depth': depth, 'trace': trace, 'input_scale': input_scale}
 
     def _prepare(self, image, sparse_depth, processing_resolution, generator):
         device = self._execution_device
