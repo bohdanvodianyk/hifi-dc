@@ -9,24 +9,13 @@ from pathlib import Path
 import sys
 
 import torch
-import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from hifidc.bench import make_hifidc_method, make_marigold_dc_method, run_benchmark, sha256_json  # noqa: E402
-from hifidc.config import load_config  # noqa: E402
+from hifidc.config import load_config, parse_overrides  # noqa: E402
 from hifidc.data import load_manifest, load_scene  # noqa: E402
-
-
-def parse_overrides(items):
-    overrides = {}
-    for item in items:
-        key, sep, value = item.partition('=')
-        if not sep:
-            raise SystemExit(f'--override expects key=value, got {item!r}')
-        overrides[key] = yaml.safe_load(value)
-    return overrides
 
 
 def main(argv=None):

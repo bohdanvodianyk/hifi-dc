@@ -79,7 +79,45 @@ def load_config(path, overrides=None):
         raise ValueError(f'{path}: expected a mapping')
     values = dict(document['values'] if 'values' in document else document)
     values.update(overrides or {})
-    unknown = sorted(set(values) - {f.name for f in fields(Config)})
+    types = {f.name: f.type for f in fields(Config)}
+    unknown = sorted(set(values) - set(types))
     if unknown:
         raise ValueError(f'Unknown config fields: {unknown}')
-    return Config(**values).validate()
+    return Config(**{k: _coerce(k, v, types[k]) for k, v in values.items()}).validate()
+
+
+def _coerce(name, value, kind):
+    """Convert a YAML/CLI value to the field's declared type (YAML 1.1 reads `1e-12` as a string)."""
+    kind = {'int': int, 'float': float, 'bool': bool, 'str': str}.get(kind, kind)
+    try:
+        if kind is bool:
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, str) and value.lower() in ('true', 'false'):
+                return value.lower() == 'true'
+        elif kind is int:
+            if isinstance(value, int) and not isinstance(value, bool):
+                return value
+            if isinstance(value, str):
+                return int(value)
+        elif kind is float:
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return float(value)
+            if isinstance(value, str):
+                return float(value)
+        elif kind is str and isinstance(value, str):
+            return value
+    except ValueError:
+        pass
+    raise ValueError(f'Config field {name!r} expects {kind.__name__}, got {value!r}')
+
+
+def parse_overrides(items):
+    """['key=value', ...] -> {key: value}; values are typed later by load_config."""
+    overrides = {}
+    for item in items:
+        key, sep, value = item.partition('=')
+        if not sep or not key:
+            raise ValueError(f'override must be key=value, got {item!r}')
+        overrides[key.strip()] = value.strip()
+    return overrides

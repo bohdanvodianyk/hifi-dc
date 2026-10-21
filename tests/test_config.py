@@ -7,7 +7,7 @@ import pytest
 import torch
 import yaml
 
-from hifidc.config import Config, load_config
+from hifidc.config import Config, load_config, parse_overrides
 from hifidc.core import data_terms
 
 PAPER_V1 = Path(__file__).resolve().parent.parent / 'configs' / 'paper_v1.yaml'
@@ -49,6 +49,24 @@ def test_overrides_apply_and_validate():
         load_config(PAPER_V1, {'learning_rate': 0.0})  # LR must be positive: the no-guidance control uses 1e-12
     with pytest.raises(ValueError, match='bogus'):
         load_config(PAPER_V1, {'bogus': 1})
+
+
+def test_values_coerced_to_field_types(tmp_path):
+    # YAML 1.1 reads 1e-12 (no decimal point) as a string; overrides arrive as strings from the CLI.
+    config = load_config(PAPER_V1, parse_overrides(['learning_rate=1e-12', 'steps=6', 'use_normals=false',
+                                                    'normal_schedule=constant']))
+    assert config.learning_rate == 1e-12 and isinstance(config.learning_rate, float)
+    assert config.steps == 6 and isinstance(config.steps, int)
+    assert config.use_normals is False and config.normal_schedule == 'constant'
+    path = tmp_path / 'sci.yaml'
+    path.write_text('ridge: 1e-6\nsteps: 20\n')
+    assert load_config(path).ridge == 1e-6
+    with pytest.raises(ValueError, match='steps'):
+        load_config(PAPER_V1, parse_overrides(['steps=abc']))
+    with pytest.raises(ValueError, match='steps'):
+        load_config(PAPER_V1, {'steps': 2.5})
+    with pytest.raises(ValueError, match='key=value'):
+        parse_overrides(['steps'])
 
 
 def test_flat_json_legacy_format(tmp_path):
