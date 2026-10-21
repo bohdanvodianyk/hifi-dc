@@ -24,6 +24,7 @@ re-run with a second seed before it is kept.
 |---|---|---|---|---|---|
 | L0 | Marigold-DC solver in `hifidc.v2` | MDC | 1.000 (bit-equal) | — | base |
 | L1 | median-normalised input | L0 (= MDC) | 0.980 [0.943, 1.012] | 1.016 / 0.989 / 0.894 | **keep** — no group worse > 5 %, removes dependence on guessed units |
-| L2 | Huber IRLS anchor, k = 1.345 | L1 | 1.090 [1.029, 1.157] | 1.114 / 1.120 / 0.988 | **drop** on clean data (stress result pending); downweighting large-but-legitimate residuals slows the metric fit |
+| L1 (stress48) | median-normalised input | MDC | 0.969 [0.933, 1.001] | 0.992 / 0.974 / 0.884 | kept; largest per-case gains are the 5 %-outlier cases (up to 0.76) |
+| L2 | Huber IRLS anchor, k = 1.345 | L1 | 1.090 [1.029, 1.157] | 1.114 / 1.120 / 0.988 | **drop** — also worse on stress48 (1.095 [1.033, 1.160]), even with 5 % outliers; downweighting large-but-legitimate residuals slows the metric fit |
 | L2b | Huber, k = 3.0 | L1 | pending | | |
 | L3 | normal guidance sweep (weight × κ gate), on L1 | L1 | pending | | |
