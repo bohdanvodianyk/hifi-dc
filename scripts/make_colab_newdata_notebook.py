@@ -72,10 +72,13 @@ else:
 
 SELECT = """# 5. Select (or reuse) the scenes and import them
 import json
-if not os.path.isdir(DATASETS_ROOT):  # bounded search for the folder
-    hits = [d for d, subdirs, _ in os.walk('/content/drive/MyDrive') if d.count('/') <= 8 and d.endswith('/main_datasets_new')]
-    assert hits, 'set DATASETS_ROOT to the folder that holds output_<dataset>/'
-    DATASETS_ROOT = hits[0]
+if not os.path.isdir(DATASETS_ROOT):  # search all of Drive (My Drive, Computers, shared drives, shortcuts)
+    found = subprocess.run(['find', '/content/drive', '-maxdepth', '12', '-type', 'd', '-iname', 'main_datasets_new'],
+                           capture_output=True, text=True).stdout.split()
+    print('found:', found)
+    assert found, ('main_datasets_new not found under /content/drive: if it is in "Shared with me", add a '
+                   'shortcut to My Drive, or set DATASETS_ROOT in cell 3')
+    DATASETS_ROOT = found[0]
 print('datasets:', DATASETS_ROOT, sorted(os.listdir(DATASETS_ROOT)))
 D_OUT = f'{DRIVE_ROOT}/{OUT_NAME}'
 L_OUT = '/content/newdata'
