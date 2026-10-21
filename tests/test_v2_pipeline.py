@@ -135,3 +135,16 @@ def test_field_lowers_final_anchor_error(tiny_v2_pipeline):
 def test_field_off_has_no_field_outputs(tiny_v2_pipeline):
     result = run(tiny_v2_pipeline, config=V2Config(steps=3))
     assert 'depth_global' not in result and all('field_rms' not in t for t in result['trace'])
+
+
+def test_post_filter_is_applied_to_the_final_depth(tiny_v2_pipeline):
+    from hifidc.v2.postfilter import guided_log_depth
+    h, w = 32, 48
+    rgb = np.zeros((h, w, 3), np.uint8)
+    rgb[:, w // 2:] = 200
+    image = Image.fromarray(rgb)
+    plain = tiny_v2_pipeline(image=image, sparse_depth=sparse_grid(h, w), config=V2Config(steps=3), seed=2024,
+                             processing_resolution=48)
+    filtered = tiny_v2_pipeline(image=image, sparse_depth=sparse_grid(h, w),
+                                config=V2Config(steps=3, post_filter="guided"), seed=2024, processing_resolution=48)
+    np.testing.assert_allclose(filtered, guided_log_depth(plain, rgb), rtol=1e-5)

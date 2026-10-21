@@ -17,6 +17,7 @@ from .config import V2Config
 from .geometry import intrinsics_matrix, normal_guidance_loss
 from .field import evaluate_field, fit_residual_field
 from .robust import robust_l1l2, robust_weights
+from .postfilter import guided_log_depth
 from .units import normalize_sparse
 
 
@@ -86,6 +87,8 @@ class HiFiDCv2Pipeline(MarigoldDepthPipeline):
         depth = self.image_processor.pt_to_numpy(prediction).squeeze()
         if input_scale != 1.0:
             depth = depth * input_scale
+        if config.post_filter == 'guided':
+            depth = guided_log_depth(depth, np.asarray(image.convert('RGB')), config.filter_radius, config.filter_eps)
         self.maybe_free_model_hooks()
         if not return_details:
             return depth

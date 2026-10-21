@@ -27,6 +27,10 @@ class V2Config:
     field_lambda: float = 1.0
     field_every: int = 5
     field_start: float = 0.3
+    # L6: RGB-guided edge-aware filter on the final log-depth ('none' or 'guided').
+    post_filter: str = 'none'
+    filter_radius: int = 4
+    filter_eps: float = 1e-3
 
     def validate(self):
         if not isinstance(self.steps, int) or isinstance(self.steps, bool) or self.steps < 1:
@@ -49,6 +53,10 @@ class V2Config:
             raise ValueError('field grid must be at least 2x2 and field_every >= 1')
         if not math.isfinite(self.field_lambda) or self.field_lambda <= 0 or not 0 <= self.field_start < 1:
             raise ValueError('field_lambda must be positive and field_start in [0, 1)')
+        if self.post_filter not in ('none', 'guided'):
+            raise ValueError('post_filter must be none or guided')
+        if self.filter_radius < 1 or not math.isfinite(self.filter_eps) or self.filter_eps <= 0:
+            raise ValueError('filter_radius must be >= 1 and filter_eps positive')
         if self.dtype not in ('bfloat16', 'float32'):
             raise ValueError('dtype must be bfloat16 or float32')
         return self
