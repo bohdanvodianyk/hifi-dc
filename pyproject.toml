@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hifidc"
+version = "1.1.0.dev0"
+description = "HiFi-DC: zero-shot depth completion with a guided diffusion depth prior"
+license = "Apache-2.0"
+requires-python = ">=3.12"
+dependencies = [
+    "torch==2.8.0",
+    "diffusers==0.35.1",
+    "transformers==4.56.2",
+    "accelerate==1.10.1",
+    "scipy==1.16.2",
+    "numpy>=1.26,<3",
+    "Pillow>=10",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+dsine = ["geffnet==1.0.2"]
+dev = ["pytest", "nbformat"]
+
+[project.scripts]
+hifidc = "hifidc.cli:main"
+
+[tool.setuptools]
+packages = ["hifidc"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-p no:cacheprovider"
+markers = [
+    "gpu: needs CUDA and real pretrained weights (run manually)",
+    "slow: slower CPU test",
+]
+filterwarnings = ["ignore:Publication-guided reconstruction:UserWarning"]
