@@ -1,6 +1,9 @@
 """Configuration for the corrected HiFi-DC v1 reconstruction (see RECONSTRUCTION_NOTES.md)."""
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 import math
+from pathlib import Path
+
+import yaml
 
 
 @dataclass
@@ -36,6 +39,8 @@ class Config:
     bilateral: bool = True
     confidence: bool = True
     normal_schedule: str = 'paper'  # paper, constant, ramp_only
+    # Sparse data-term normaliser: 'count' = paper (divide by n), 'weight_sum' = divide by sum of weights.
+    data_normalization: str = 'count'
 
     def validate(self):
         for key in ('steps', 'lsq_interval', 'confidence_window', 'bilateral_diameter'):
@@ -57,6 +62,24 @@ class Config:
             raise ValueError('EMA beta and sigmoid midpoint must be in [0, 1]')
         if self.normal_schedule not in ('paper', 'constant', 'ramp_only'):
             raise ValueError('Unknown normal schedule')
+        if self.data_normalization not in ('count', 'weight_sum'):
+            raise ValueError('data_normalization must be count or weight_sum')
         if self.depth_unit not in ('m', 'mm'):
             raise ValueError('depth_unit must be m or mm')
         return self
+
+
+def load_config(path, overrides=None):
+    """Load a Config from YAML/JSON: either {values: {...}, provenance: {...}} or a flat field mapping.
+
+    Unknown keys (in the file or in overrides) raise ValueError; the result is validated.
+    """
+    document = yaml.safe_load(Path(path).read_text(encoding='utf-8'))
+    if not isinstance(document, dict):
+        raise ValueError(f'{path}: expected a mapping')
+    values = dict(document['values'] if 'values' in document else document)
+    values.update(overrides or {})
+    unknown = sorted(set(values) - {f.name for f in fields(Config)})
+    if unknown:
+        raise ValueError(f'Unknown config fields: {unknown}')
+    return Config(**values).validate()

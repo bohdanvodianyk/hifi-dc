@@ -1,0 +1,67 @@
+# HiFi-DC v1.1-corrected: publication configuration (Image and Vision Computing 173 (2026) 106024).
+#
+# `values` must equal hifidc.config.Config() defaults exactly (tests/test_config.py).
+# `provenance` marks every field: `paper` = stated in the paper; `reconstruction: <why>` = a choice
+# made by the clean reconstruction where the paper is not a complete specification
+# (see RECONSTRUCTION_NOTES.md). Do not tune reconstruction values on the test scenes.
+values:
+  steps: 50
+  normal_weight: 0.1
+  lambda_l1: 0.5
+  lsq_interval: 10
+  ema_beta: 0.5
+  edge_tau: 0.20
+  stability_threshold: 0.10
+  bilateral_sigma_space: 75.0
+  bilateral_sigma_range: 75.0
+  learning_rate: 0.02
+  gradient_clip: 1.0
+  ridge: 1.0e-6
+  variance_guard: 1.0e-8
+  confidence_window: 5
+  confidence_gain: 10.0
+  confidence_midpoint: 0.5
+  bilateral_diameter: 5
+  depth_unit: m
+  use_normals: true
+  use_l1: true
+  use_quadratic_correction: true
+  periodic_fit: true
+  warm_start: true
+  final_fit: true
+  progressive: true
+  bilateral: true
+  confidence: true
+  normal_schedule: paper
+  data_normalization: count
+
+provenance:
+  steps: paper
+  normal_weight: paper
+  lambda_l1: paper
+  lsq_interval: paper
+  ema_beta: paper
+  edge_tau: paper
+  stability_threshold: paper
+  bilateral_sigma_space: paper
+  bilateral_sigma_range: paper
+  learning_rate: "reconstruction: Adam lr from the surviving base code, not a recovered run setting"
+  gradient_clip: "reconstruction: from the surviving base code"
+  ridge: "reconstruction: paper gives a ridge term but no magnitude"
+  variance_guard: "reconstruction: paper gives a variance guard but no magnitude"
+  confidence_window: "reconstruction: paper gives density confidence without a window size"
+  confidence_gain: "reconstruction: sigmoid gain not given in the paper"
+  confidence_midpoint: "reconstruction: sigmoid midpoint not given in the paper"
+  bilateral_diameter: "reconstruction: paper permits 5 or 7"
+  depth_unit: "reconstruction: core optimises in metres; inputs are converted per scene"
+  use_normals: paper
+  use_l1: paper
+  use_quadratic_correction: paper
+  periodic_fit: paper
+  warm_start: paper
+  final_fit: paper
+  progressive: paper
+  bilateral: paper
+  confidence: paper
+  normal_schedule: paper
+  data_normalization: paper

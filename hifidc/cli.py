@@ -8,13 +8,14 @@ import numpy as np
 from PIL import Image
 import torch
 
-from .config import Config
+from .config import Config, load_config
 from .dsine import default_dsine_paths, load_local_dsine_model
 from .pipeline import MarigoldDepthCompletionPipelineWithNormals
 
 MARIGOLD_CHECKPOINT = 'prs-eth/marigold-depth-v1-0'
 MARIGOLD_REVISION = 'f4fc453d7d217cbe30ddcad3eb311d1ad9a11c4c'
 PACKAGE_DIR = Path(__file__).resolve().parent
+PAPER_V1 = PACKAGE_DIR.parent / 'configs' / 'paper_v1.yaml'
 
 
 def main(argv=None):
@@ -34,7 +35,8 @@ def main(argv=None):
     parser.add_argument('--dsine-ckpt', default=dsine_ckpt, help='Default: $HIFIDC_DSINE_ROOT/' + 'projects/dsine/checkpoints/...')
     parser.add_argument('--dsine-config', default=dsine_cfg)
     parser.add_argument('--normal-prior', help='Optional aligned DSINE normal .npy, HWC or CHW')
-    parser.add_argument('--config', help='JSON containing additional Config fields')
+    parser.add_argument('--config', default=None,
+                        help='YAML/JSON config (default: configs/paper_v1.yaml); explicit step/loss flags take precedence')
     parser.add_argument('--depth-unit', choices=['m', 'mm'], default=None, help='Input/output depth unit; optimisation uses metres')
     parser.add_argument('--overwrite', action='store_true', help='Explicitly allow replacing existing prediction files')
     args = parser.parse_args(argv)
@@ -43,7 +45,10 @@ def main(argv=None):
                path.with_name(path.stem + '_uncertainty.npy'), path.with_name(path.stem + '_run.json')]
     if not args.overwrite and any(p.exists() for p in outputs):
         raise FileExistsError('Output already exists; choose a new directory or pass --overwrite explicitly')
-    config = Config(**json.loads(Path(args.config).read_text())) if args.config else Config()
+    if args.config:
+        config = load_config(args.config)
+    else:
+        config = load_config(PAPER_V1) if PAPER_V1.is_file() else Config()
     if args.depth_unit:
         config.depth_unit = args.depth_unit
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

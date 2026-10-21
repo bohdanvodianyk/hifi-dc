@@ -51,10 +51,12 @@ def data_terms(prediction, sparse, mask, weights, config):
     n = r.numel()
     if n == 0:
         raise ValueError('No valid sparse observations')
-    quadratic = (w * r.square()).sum() / n
+    # Paper: divide by the sample count n. Optional: divide by the weight sum.
+    denom = w.sum() if config.data_normalization == 'weight_sum' else n
+    quadratic = (w * r.square()).sum() / denom
     if config.use_quadratic_correction:
-        quadratic = quadratic - 0.5 * (w * r).sum().square() / (n * n)
-    l1 = config.lambda_l1 * (w * r.abs()).sum() / n if config.use_l1 else quadratic.new_zeros(())
+        quadratic = quadratic - 0.5 * (w * r).sum().square() / (denom * denom)
+    l1 = config.lambda_l1 * (w * r.abs()).sum() / denom if config.use_l1 else quadratic.new_zeros(())
     return quadratic, l1
 
 
