@@ -29,13 +29,13 @@ re-run with a second seed before it is kept.
 | L2b | Huber, k = 3.0 | L1 | 1.012 [0.970, 1.055] | 1.039 / 1.011 / 0.962 | **drop** — stress48 1.030 [0.999, 1.066] |
 | L3 | normal guidance w 0.025, κ gate off (best of w ∈ {0.025, 0.05, 0.1} × κ on/off) | L1 | 0.986 [0.973, 0.996] (s2024), 0.983 [0.970, 0.994] (s2025) | 0.981 / 0.983 / 0.988 (s2025) | **keep** — small but the same on two seeds, all groups better; with L6 on top 0.987 [0.973, 1.000]. w 0.1 hurts real_indoor. Needs DSINE normals (~1 s/image) |
 | L4 | in-loop metric residual field | — | superseded by L7 | | the post-hoc field is simpler and robust |
-| L5 | fewer steps (same lr), with L6 | L1+L6 | 25 steps 1.651 [1.371, 2.041], 10 steps 3.327 [2.255, 5.074] | driving worst (2.8 / 8.7) | **drop** — 12.4 / 4.9 s vs 21 s per case, but the latent does not converge; an affine refit does not rescue it. 25 steps with 2× lr: pending |
+| L5 | fewer steps (same lr), with L6 | L1+L6 | 25 steps 1.651 [1.371, 2.041], 10 steps 3.327 [2.255, 5.074] | driving worst (2.8 / 8.7) | **drop** — 12.4 / 4.9 s vs 21 s per case, but the latent does not converge; an affine refit does not rescue it. 25 steps with 2× lr (+ L7 + L6): 1.208 [1.123, 1.331] vs the 50-step version, 1.007 [0.970, 1.048] vs MDC at ~12 s/case — a possible "fast" setting (MDC accuracy, half the time) |
 | L6 | RGB-guided filter on log-depth (grey guide, r 2 on the 384 grid, eps 1e-3) | L1 | 0.896 vs MDC (s2024); stress48 0.881 | 0.942 / 0.909 / 0.787 vs MDC | **keep** — r 4 gives the same AbsRel but softer edges (edge sharpness 0.28 vs 0.34 on new scenes); r 2 is also sharper than MDC on dev50 (0.393 vs 0.366) |
 | L7 | post-hoc robust log residual field (6×8, Tukey IRLS, λ 0.3), before L6 | L1+L6 | 0.921 [0.861, 0.964] (s2025) | 0.925 / 0.969 / 0.827 | **keep** — vs MDC: 0.834 (s2024), 0.834 (s2025), stress48 0.854. A plain metric field helped dev50 (0.841) but hurt stress48 (0.891 vs 0.881, real_indoor 0.958); the robust log fit fixes that |
 
 ## Current best (candidate) — `configs/v2/candidate.yaml`
 
-L1 + L3 + L7 + L6, vs Marigold-DC on dev50 at 384 px (derived offline from saved L3 predictions;
+L1 + L3 + L7 + L6, vs Marigold-DC on dev50 at 384 px. End-to-end run `cand_dev50_384` reproduces the offline result exactly (ratio 1.000); stress48 `cand_stress_384` 0.843 [0.783, 0.896] (ri 0.882 / syn 0.848 / drv 0.715), 21.5 s/case vs MDC 21.2 s. Offline (from saved L3 predictions;
 the end-to-end candidate run is the check): **0.829 [0.746, 0.901]** (s2024), **0.828 [0.757, 0.886]**
 (s2025); groups real_indoor 0.874–0.902, synthetic 0.863–0.873, driving 0.631–0.683.
 
