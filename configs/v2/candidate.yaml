@@ -1,0 +1,15 @@
+# Phase 1 candidate = L1 + L3 (normal guidance w 0.025, no kappa gate) + L7 robust log field + L6 guided filter r2.
+steps: 50
+latent_lr: 0.05
+affine_lr: 0.005
+dtype: bfloat16
+normalize_input: true
+robust: none
+normal_weight: 0.025
+normal_start: 0.66
+edge_tau: 0.2
+kappa_gate: false
+post_field: log_robust
+post_field_lambda: 0.3
+post_filter: guided
+filter_radius: 2
