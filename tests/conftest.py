@@ -14,6 +14,27 @@ from hifidc.pipeline import DiffusionBackend, MarigoldDepthCompletionPipelineWit
 torch.set_num_threads(1)
 
 
+@pytest.fixture(autouse=True)
+def _restore_torch_global_state():
+    """Undo process-wide torch settings a test changes (e.g. configure_determinism in the GPU tests).
+
+    The SDPA flags also choose the CPU attention kernel, so a leak breaks the bit-exact golden tests.
+    """
+    cuda, cudnn = torch.backends.cuda, torch.backends.cudnn
+    saved = dict(flash=cuda.flash_sdp_enabled(), mem=cuda.mem_efficient_sdp_enabled(), cudnn_sdp=cuda.cudnn_sdp_enabled(),
+                 math=cuda.math_sdp_enabled(), det=torch.are_deterministic_algorithms_enabled(),
+                 warn=torch.is_deterministic_algorithms_warn_only_enabled(), cudnn_det=cudnn.deterministic,
+                 bench=cudnn.benchmark, threads=torch.get_num_threads())
+    yield
+    cuda.enable_flash_sdp(saved['flash'])
+    cuda.enable_mem_efficient_sdp(saved['mem'])
+    cuda.enable_cudnn_sdp(saved['cudnn_sdp'])
+    cuda.enable_math_sdp(saved['math'])
+    torch.use_deterministic_algorithms(saved['det'], warn_only=saved['warn'])
+    cudnn.deterministic, cudnn.benchmark = saved['cudnn_det'], saved['bench']
+    torch.set_num_threads(saved['threads'])
+
+
 class TinyVAE(torch.nn.Module):
     dtype = torch.float32
     config = SimpleNamespace(scaling_factor=1., latent_channels=4)

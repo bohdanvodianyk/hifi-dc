@@ -49,6 +49,22 @@ def test_live_dsine_matches_cached_normals():
     del live
     torch.cuda.empty_cache()
     cached = make_hifidc_v2_method(config, device, normals_dir=ROOT / 'cache' / 'normals')
-    cached_pred, _ = cached(scene, np.load(ROOT / 'cache' / 'normals' / 'office_4_1240_normals.npy'), 2024, 128)
+    cached_normals = np.load(ROOT / 'cache' / 'normals' / 'office_4_1240_normals.npy')
+    cached_pred, _ = cached(scene, cached_normals, 2024, 128)
+    del cached
+    torch.cuda.empty_cache()
+    # Same normals: live DSINE (under the benchmark's determinism settings) matches the cache to < 0.5 deg.
+    from PIL import Image
+    from hifidc.dsine import default_dsine_paths, dsine_infer, load_local_dsine_model
+    model, args = load_local_dsine_model(*default_dsine_paths(), device)
+    output = dsine_infer(model, args, Image.fromarray(scene.rgb), device)
+    normals = torch.nn.functional.normalize(output[:, :3], dim=1)[0].permute(1, 2, 0).float().cpu().numpy()
+    angle = np.degrees(np.arccos(np.clip((normals * cached_normals).sum(-1), -1, 1)))
+    assert angle.max() < 0.5, f'max normal angle {angle.max():.3f} deg'
+    # Same quality: the bf16 solver amplifies ~0.1 deg normal noise into pixel differences of a few
+    # per cent (normal_start 0, 6 steps), so compare accuracy, not pixels.
     assert np.isfinite(live_pred).all()
-    assert np.abs(live_pred - cached_pred).max() / np.abs(cached_pred).max() < 1e-2
+    from hifidc.metrics import depth_metrics
+    live_err = depth_metrics(live_pred, scene.gt, scene.valid_gt)['abs_rel']
+    cached_err = depth_metrics(cached_pred, scene.gt, scene.valid_gt)['abs_rel']
+    assert abs(live_err / cached_err - 1) < 0.05, (live_err, cached_err)
