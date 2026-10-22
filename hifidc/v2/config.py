@@ -31,6 +31,9 @@ class V2Config:
     post_filter: str = 'none'
     filter_radius: int = 2
     filter_eps: float = 1e-3
+    # L7: post-hoc robust log residual field on the final depth, before the L6 filter ('none' or 'log_robust').
+    post_field: str = 'none'
+    post_field_lambda: float = 0.3
 
     def validate(self):
         if not isinstance(self.steps, int) or isinstance(self.steps, bool) or self.steps < 1:
@@ -57,6 +60,10 @@ class V2Config:
             raise ValueError('post_filter must be none or guided')
         if self.filter_radius < 1 or not math.isfinite(self.filter_eps) or self.filter_eps <= 0:
             raise ValueError('filter_radius must be >= 1 and filter_eps positive')
+        if self.post_field not in ('none', 'log_robust'):
+            raise ValueError('post_field must be none or log_robust')
+        if not math.isfinite(self.post_field_lambda) or self.post_field_lambda <= 0:
+            raise ValueError('post_field_lambda must be finite and positive')
         if self.dtype not in ('bfloat16', 'float32'):
             raise ValueError('dtype must be bfloat16 or float32')
         return self

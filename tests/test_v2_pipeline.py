@@ -148,3 +148,19 @@ def test_post_filter_is_applied_to_the_final_depth(tiny_v2_pipeline):
     filtered = tiny_v2_pipeline(image=image, sparse_depth=sparse_grid(h, w),
                                 config=V2Config(steps=3, post_filter="guided"), seed=2024, processing_resolution=48)
     np.testing.assert_allclose(filtered, guided_log_depth(plain, rgb), rtol=1e-5)
+
+
+def test_post_field_runs_on_input_units_before_the_filter(tiny_v2_pipeline):
+    from hifidc.v2.field import log_residual_field
+    from hifidc.v2.postfilter import guided_log_depth
+    h, w = 32, 48
+    rgb = np.zeros((h, w, 3), np.uint8)
+    rgb[:, w // 2:] = 200
+    image = Image.fromarray(rgb)
+    sparse = sparse_grid(h, w) * 1000.0                        # millimetres: field must see input units
+    kwargs = dict(image=image, sparse_depth=sparse, seed=2024, processing_resolution=48)
+    plain = tiny_v2_pipeline(config=V2Config(steps=3, normalize_input=True), **kwargs)
+    both = tiny_v2_pipeline(config=V2Config(steps=3, normalize_input=True, post_field='log_robust',
+                                            post_filter='guided'), **kwargs)
+    expected = guided_log_depth(log_residual_field(plain, sparse, lam=0.3), rgb)
+    np.testing.assert_allclose(both, expected, rtol=1e-5)

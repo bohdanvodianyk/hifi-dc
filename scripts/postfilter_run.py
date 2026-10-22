@@ -21,6 +21,7 @@ from hifidc.bench import _summary, _write_csv  # noqa: E402
 from hifidc.cases import dev50, stress48, stress_dense  # noqa: E402
 from hifidc.data import load_manifest, load_scene  # noqa: E402
 from hifidc.metrics import anchor_residual, depth_metrics  # noqa: E402
+from hifidc.v2.field import log_residual_field  # noqa: E402
 from hifidc.v2.postfilter import guided_log_depth  # noqa: E402
 
 CASE_SETS = {'dev50': dev50, 'stress48': stress48, 'stress': stress_dense}
@@ -33,6 +34,9 @@ def main(argv=None):
     parser.add_argument('out')
     parser.add_argument("--radius", type=int, default=2)
     parser.add_argument('--eps', type=float, default=1e-3)
+    parser.add_argument('--field', choices=('none', 'log_robust'), default='none',
+                        help='L7 post-hoc robust log residual field, applied before the filter')
+    parser.add_argument('--field-lambda', type=float, default=0.3)
     parser.add_argument('--scenes', default=str(ROOT / 'configs' / 'scenes.yaml'))
     parser.add_argument('--data', default=str(ROOT / 'data' / 'test'))
     args = parser.parse_args(argv)
@@ -56,7 +60,10 @@ def main(argv=None):
                 case = cases[old['case']]
                 name = f"{old['case'].replace('/', '__')}_s{old['seed']}.npy"
                 start = time.perf_counter()
-                pred = guided_log_depth(np.load(source / 'pred' / name), case.rgb, args.radius, args.eps)
+                pred = np.load(source / 'pred' / name)
+                if args.field == 'log_robust':
+                    pred = log_residual_field(pred, case.sparse, lam=args.field_lambda)
+                pred = guided_log_depth(pred, case.rgb, args.radius, args.eps)
                 row['seconds'] = (row['seconds'] or 0.0) + time.perf_counter() - start
                 np.save(out / 'pred' / name, pred)
                 row.update(depth_metrics(pred, case.gt, case.valid_gt))
@@ -66,7 +73,8 @@ def main(argv=None):
             rows.append(row)
     _write_csv(out / 'metrics.csv', rows)
     (out / 'summary.json').write_text(json.dumps(_summary(rows), indent=2))
-    manifest.update(derived_from=str(source), post_filter={'kind': 'guided', 'radius': args.radius, 'eps': args.eps})
+    manifest.update(derived_from=str(source), post_filter={'kind': 'guided', 'radius': args.radius, 'eps': args.eps,
+                                                           'field': args.field, 'field_lambda': args.field_lambda})
     (out / 'manifest.json').write_text(json.dumps(manifest, indent=2, default=str))
     print(f'filtered {sum(r["status"] == "ok" for r in rows)}/{len(rows)} predictions -> {out}')
 

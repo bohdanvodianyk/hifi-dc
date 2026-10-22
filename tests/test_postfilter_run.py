@@ -9,12 +9,13 @@ import numpy as np
 from PIL import Image
 import yaml
 
+from hifidc.v2.field import log_residual_field
 from hifidc.v2.postfilter import guided_log_depth
 
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def test_postfilter_run_writes_comparable_run(tmp_path):
+def _fake_run(tmp_path):
     data = tmp_path / "data"
     data.mkdir()
     rng = np.random.default_rng(0)
@@ -39,10 +40,19 @@ def test_postfilter_run_writes_comparable_run(tmp_path):
         writer.writeheader()
         writer.writerow(dict(stem="toy", source="toy", seed=2024, case="toy", status="ok", message="", abs_rel=0.05,
                              seconds=1.0, peak_vram_gb=0.1, unet_calls=50, unit_uncertain=False, outdoor=False))
-    out = tmp_path / "filtered"
+    return src, scenes, data, pred, gt, sparse
+
+
+def _run(src, out, scenes, data, *extra):
     result = subprocess.run([sys.executable, str(ROOT / "scripts" / "postfilter_run.py"), str(src), str(out),
-                             "--scenes", str(scenes), "--data", str(data)], capture_output=True, text=True)
+                             "--scenes", str(scenes), "--data", str(data), *extra], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
+
+
+def test_postfilter_run_writes_comparable_run(tmp_path):
+    src, scenes, data, pred, gt, _ = _fake_run(tmp_path)
+    out = tmp_path / "filtered"
+    _run(src, out, scenes, data)
     filtered = np.load(out / "pred" / "toy_s2024.npy")
     rgb = np.asarray(Image.open(data / "toy_rgb.png"))
     np.testing.assert_allclose(filtered, guided_log_depth(pred, rgb), rtol=1e-6)
@@ -50,3 +60,14 @@ def test_postfilter_run_writes_comparable_run(tmp_path):
     expected = float(np.mean(np.abs(filtered - gt) / gt))
     assert abs(float(row["abs_rel"]) - expected) < 1e-6 and float(row["seconds"]) >= 1.0
     assert json.loads((out / "manifest.json").read_text())["post_filter"]["radius"] == 2
+
+
+def test_postfilter_run_applies_the_field_before_the_filter(tmp_path):
+    src, scenes, data, pred, _, sparse = _fake_run(tmp_path)
+    out = tmp_path / "field"
+    _run(src, out, scenes, data, "--field", "log_robust")
+    rgb = np.asarray(Image.open(data / "toy_rgb.png"))
+    expected = guided_log_depth(log_residual_field(pred, sparse, lam=0.3), rgb)
+    np.testing.assert_allclose(np.load(out / "pred" / "toy_s2024.npy"), expected, rtol=1e-5)
+    post = json.loads((out / "manifest.json").read_text())["post_filter"]
+    assert post["field"] == "log_robust" and post["field_lambda"] == 0.3

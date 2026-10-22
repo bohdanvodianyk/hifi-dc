@@ -15,7 +15,7 @@ from diffusers import MarigoldDepthPipeline
 
 from .config import V2Config
 from .geometry import intrinsics_matrix, normal_guidance_loss
-from .field import evaluate_field, fit_residual_field
+from .field import evaluate_field, fit_residual_field, log_residual_field
 from .robust import robust_l1l2, robust_weights
 from .postfilter import guided_log_depth
 from .units import normalize_sparse
@@ -31,6 +31,7 @@ class HiFiDCv2Pipeline(MarigoldDepthPipeline):
         if not isinstance(sparse_depth, np.ndarray) or sparse_depth.ndim != 2:
             raise ValueError('Sparse depth should be a 2D numpy ndarray with zeros at missing positions')
         input_scale = 1.0
+        input_sparse = sparse_depth
         if config.normalize_input:
             sparse_depth, input_scale = normalize_sparse(sparse_depth)
         device = self._execution_device
@@ -87,6 +88,9 @@ class HiFiDCv2Pipeline(MarigoldDepthPipeline):
         depth = self.image_processor.pt_to_numpy(prediction).squeeze()
         if input_scale != 1.0:
             depth = depth * input_scale
+        if config.post_field == 'log_robust':
+            depth = log_residual_field(depth, input_sparse, (config.field_grid_h, config.field_grid_w),
+                                       config.post_field_lambda)
         if config.post_filter == 'guided':
             depth = guided_log_depth(depth, np.asarray(image.convert('RGB')), config.filter_radius, config.filter_eps)
         self.maybe_free_model_hooks()

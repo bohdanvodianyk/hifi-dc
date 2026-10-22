@@ -58,3 +58,34 @@ def fit_residual_field(residual, uv, weights, grid, lam):
 def evaluate_field(q, hw):
     """Control values [gh, gw] -> dense field [1,1,H,W] (bilinear, corners aligned)."""
     return F.interpolate(q[None, None], size=tuple(hw), mode='bilinear', align_corners=True)
+
+
+def log_residual_field(depth, sparse, grid=(6, 8), lam=0.3, robust=True, tukey_c=4.685, iters=5, min_points=8):
+    """Rung L7: post-hoc smooth multiplicative correction of the final depth toward the sparse points.
+
+    Fits the field to log(sparse) - log(depth) (unit-free), with Tukey IRLS weights (scale = 1.4826 MAD)
+    when robust, so gross outliers in the input do not bend it. Returns depth * exp(field), float32.
+    With fewer than min_points valid points the depth is returned unchanged.
+    """
+    import numpy as np  # local: keeps the torch-only helpers above free of numpy
+
+    depth = np.asarray(depth, np.float64)
+    sparse = np.asarray(sparse, np.float64)
+    mask = (sparse > 0) & np.isfinite(sparse) & np.isfinite(depth) & (depth > 0)
+    if mask.sum() < min_points:
+        return depth.astype(np.float32)
+    rows, cols = np.nonzero(mask)
+    h, w = depth.shape
+    r = torch.from_numpy(np.log(sparse[mask]) - np.log(depth[mask]))
+    uv = torch.from_numpy(np.stack([cols / max(w - 1, 1), rows / max(h - 1, 1)], axis=1).astype(np.float64))
+    weights = torch.ones_like(r)
+    q = fit_residual_field(r, uv, weights, grid, lam)
+    if robust:
+        basis = _basis(uv, grid)
+        for _ in range(iters):
+            e = r - basis @ q.reshape(-1)
+            scale = (1.4826 * (e - e.median()).abs().median()).clamp(min=1e-4)
+            u = (e / (tukey_c * scale)).clamp(-1, 1)
+            weights = (1 - u ** 2) ** 2
+            q = fit_residual_field(r, uv, weights, grid, lam)
+    return (depth * np.exp(evaluate_field(q, (h, w))[0, 0].numpy())).astype(np.float32)
