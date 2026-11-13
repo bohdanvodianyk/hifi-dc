@@ -10,7 +10,7 @@ scene in its native units (never pooled across scenes). Decisions per rung are i
 | name | config | what it is | runtime / case (384 px, local 8 GB laptop GPU) |
 |---|---|---|---|
 | `cand` | `configs/v2/candidate.yaml` | MDC solver + median-normalised input (L1) + DSINE normal guidance w 0.025 (L3) + robust log residual field (L7) + RGB-guided log-depth filter r 2 (L6) | 21.5 s (MDC 21.2 s) + ~1 s DSINE |
-| `fast` | `configs/v2/fast.yaml` | L1 with 25 steps and 2× learning rates + L7 + L6, no normals | ~11 s |
+| `fast` (dropped) | `configs/v2/fast.yaml` | L1 with 25 steps and 2× learning rates + L7 + L6, no normals | ~11 s; 1.06 vs MDC on new scenes |
 
 L7 and L6 are post-hoc (< 0.1 s): they can be applied to any depth-completion output.
 
@@ -29,15 +29,22 @@ copied from the 384 latent grid (L6) and smooth low-frequency scale drift betwee
 
 ## New scenes (Colab, `main_datasets_new`, never used for tuning)
 
-Dev split (3 scenes per dataset): L1 0.988 [0.971, 1.004]; L1 + L6 0.894 [0.863, 0.922] (patterns),
-0.906 (stress). End-to-end `cand` and `fast` on this split: **pending** (notebook cell 8).
+Dev split (3 scenes per dataset, 24 scenes; Colab L4, end to end):
 
-Test split (10 scenes per dataset, run once with the frozen settings): **pending**.
+| set | `cand` vs MDC | real_indoor / synthetic / driving | si-log / δ1 / held-out | `fast` vs MDC | L1 vs MDC |
+|---|---|---|---|---|---|
+| dev patterns (120 cases) | **0.821 [0.781, 0.863]** | 0.881 / 0.856 / 0.704 | 0.845 / 0.825 / 0.834 | 1.060 [1.013, 1.113] | 0.983 |
+| dev stress (114 cases) | **0.847 [0.813, 0.881]** | 0.885 / 0.861 / 0.743 | 0.866 / 0.851 / 0.849 | 1.057 [1.013, 1.108] | 0.979 |
 
-| set | `cand` vs MDC | groups | `fast` vs MDC | groups |
-|---|---|---|---|---|
-| test patterns | | | | |
-| test stress | | | | |
+`cand` reproduces the local gain on unseen scenes (local 0.829 / 0.843). `fast` does not: it tied MDC
+on the local scenes (1.007) but is 6 % worse here (real_indoor 1.16), so it is dropped from the test.
+
+Test split (10 scenes per dataset, run once with the frozen `cand`; MDC and `cand` only): **pending**.
+
+| set | `cand` vs MDC | real_indoor / synthetic / driving | si-log / δ1 / held-out |
+|---|---|---|---|
+| test patterns | | | |
+| test stress | | | |
 
 ## Figures
 
