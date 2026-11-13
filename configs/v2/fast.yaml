@@ -1,0 +1,11 @@
+# Phase 1 fast setting = L1 with 25 steps and 2x learning rates + L7 robust log field + L6 guided filter r2.
+# No normal guidance (no DSINE). dev50: 1.007 [0.970, 1.048] vs Marigold-DC at ~12 s/case (MDC ~21 s).
+steps: 25
+latent_lr: 0.1
+affine_lr: 0.01
+dtype: bfloat16
+normalize_input: true
+post_field: log_robust
+post_field_lambda: 0.3
+post_filter: guided
+filter_radius: 2
