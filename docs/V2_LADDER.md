@@ -40,7 +40,7 @@ the end-to-end candidate run is the check): **0.829 [0.746, 0.901]** (s2024), **
 (s2025); groups real_indoor 0.874–0.902, synthetic 0.863–0.873, driving 0.631–0.683.
 
 New scenes (Colab, 24 dev scenes from `main_datasets_new`, never used for tuning): L1 0.988
-[0.971, 1.004]; L1 + L6 (r 2) 0.894 [0.863, 0.922] (patterns) and 0.906 (stress). L7 check pending.
+[0.971, 1.004]; L1 + L6 (r 2) 0.894 [0.863, 0.922] (patterns) and 0.906 (stress). End-to-end `cand` and `fast` on these scenes: pending (notebook `colab_newdata.ipynb`, which also gates the one-time test split). Summary: `V2_RESULTS.md`.
 
 ## Tried and not kept (offline probes on saved predictions)
 
