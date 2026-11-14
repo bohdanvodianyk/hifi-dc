@@ -34,6 +34,9 @@ class V2Config:
     # L7: post-hoc robust log residual field on the final depth, before the L6 filter ('none' or 'log_robust').
     post_field: str = 'none'
     post_field_lambda: float = 0.3
+    # Phase 2 warm start: fraction of the schedule skipped by starting from a one-step prior, re-noised
+    # to that timestep, with scale/shift initialised by an LS fit of the prior (0 = cold start, L0).
+    warm_start: float = 0.0
 
     def validate(self):
         if not isinstance(self.steps, int) or isinstance(self.steps, bool) or self.steps < 1:
@@ -64,6 +67,8 @@ class V2Config:
             raise ValueError('post_field must be none or log_robust')
         if not math.isfinite(self.post_field_lambda) or self.post_field_lambda <= 0:
             raise ValueError('post_field_lambda must be finite and positive')
+        if not (math.isfinite(self.warm_start) and 0 <= self.warm_start < 1):
+            raise ValueError('warm_start must be in [0, 1)')
         if self.dtype not in ('bfloat16', 'float32'):
             raise ValueError('dtype must be bfloat16 or float32')
         return self

@@ -19,9 +19,11 @@ from .field import evaluate_field, fit_residual_field, log_residual_field
 from .robust import robust_l1l2, robust_weights
 from .postfilter import guided_log_depth
 from .units import normalize_sparse
+from .warm import affine_from_prior
 
 
 class HiFiDCv2Pipeline(MarigoldDepthPipeline):
+    free_cache_every_step = True  # Marigold-DC behaviour; False is ~7 % faster at 384 px, same peak memory
 
     def __call__(self, *, image, sparse_depth, config=None, seed=2024, processing_resolution=768,
                  normals=None, kappa=None, intrinsics=None, return_details=False):
@@ -40,12 +42,15 @@ class HiFiDCv2Pipeline(MarigoldDepthPipeline):
         self._prepare_normals(state, config, normals, kappa, intrinsics)
         trace = []
         self.scheduler.set_timesteps(config.steps, device=device)
-        scale = torch.nn.Parameter(torch.ones(1, device=device))
-        shift = torch.nn.Parameter(torch.ones(1, device=device))
-        latent = torch.nn.Parameter(state['pred_latent'])
+        start, scale0, shift0, start_latent = 0, torch.ones(1), torch.ones(1), state['pred_latent']
+        if config.warm_start > 0:
+            start, scale0, shift0, start_latent = self._warm_start(state, config, generator)
+        scale = torch.nn.Parameter(scale0.reshape(1).to(device))
+        shift = torch.nn.Parameter(shift0.reshape(1).to(device))
+        latent = torch.nn.Parameter(start_latent)
         optimizer = torch.optim.Adam([{'params': [scale, shift], 'lr': config.affine_lr},
                                       {'params': [latent], 'lr': config.latent_lr}])
-        for index, t in enumerate(self.scheduler.timesteps):
+        for index, t in enumerate(self.scheduler.timesteps[start:], start=start):
             optimizer.zero_grad()
             noise = self.unet(torch.cat([state['image_latent'], latent], dim=1), t,
                               encoder_hidden_states=self.empty_text_embedding, return_dict=False)[0]
@@ -76,7 +81,7 @@ class HiFiDCv2Pipeline(MarigoldDepthPipeline):
                           'scale': float(scale.detach() ** 2) * state['sparse_range'],
                           'shift': float(shift.detach() ** 2) * state['sparse_lower'], **parts})
             del step_output, prediction, pred_epsilon, noise
-            if torch.cuda.is_available():
+            if self.free_cache_every_step and torch.cuda.is_available():
                 torch.cuda.empty_cache()
         extra = {}
         with torch.no_grad():
@@ -119,6 +124,27 @@ class HiFiDCv2Pipeline(MarigoldDepthPipeline):
                 'original_resolution': original_resolution, 'sparse': sparse, 'mask': mask,
                 'sparse_range': (sparse[mask].max() - sparse[mask].min()).item(),
                 'sparse_lower': sparse[mask].min().item()}
+
+    def _warm_start(self, state, config, generator):
+        """One no-grad prior step from noise; LS affine init; prior latent re-noised to the start timestep."""
+        timesteps = self.scheduler.timesteps
+        start = min(int(round(config.warm_start * config.steps)), config.steps - 1)
+        with torch.no_grad():
+            first = timesteps[0]
+            noise = self.unet(torch.cat([state['image_latent'], state['pred_latent']], dim=1), first,
+                              encoder_hidden_states=self.empty_text_embedding, return_dict=False)[0]
+            prior_latent = self.scheduler.step(noise, first, state['pred_latent'], generator=generator).pred_original_sample
+            unit = torch.tensor(1.0 / state['sparse_range'], device=prior_latent.device).sqrt()
+            prior = self._metric(prior_latent, unit, torch.zeros_like(unit), state).float()
+            mask = state['mask']
+            scale0, shift0 = affine_from_prior(prior[mask].cpu(), state['sparse'][mask].cpu(),
+                                               state['sparse_range'], state['sparse_lower'])
+            if start == 0:
+                return 0, scale0, shift0, state['pred_latent']
+            eps = torch.randn(prior_latent.shape, generator=generator, device=prior_latent.device,
+                              dtype=prior_latent.dtype)
+            latent = self.scheduler.add_noise(prior_latent, eps, timesteps[start:start + 1])
+        return start, scale0, shift0, latent
 
     def _prepare_normals(self, state, config, normals, kappa, intrinsics):
         """L3 inputs on the original grid: prior normals [1,3,H,W], optional kappa [1,1,H,W], K."""

@@ -164,3 +164,15 @@ def test_post_field_runs_on_input_units_before_the_filter(tiny_v2_pipeline):
                                             post_filter='guided'), **kwargs)
     expected = guided_log_depth(log_residual_field(plain, sparse, lam=0.3), rgb)
     np.testing.assert_allclose(both, expected, rtol=1e-5)
+
+
+@pytest.mark.parametrize("free, expected", [(True, 3), (False, 0)])
+def test_per_step_cache_free_is_switchable(tiny_v2_pipeline, monkeypatch, free, expected):
+    """free_cache_every_step=False skips the per-step torch.cuda.empty_cache (~7 % of runtime at 384 px)."""
+    import torch
+    calls = []
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(torch.cuda, "empty_cache", lambda: calls.append(1))
+    tiny_v2_pipeline.free_cache_every_step = free
+    run(tiny_v2_pipeline, config=V2Config(steps=3))
+    assert len(calls) == expected

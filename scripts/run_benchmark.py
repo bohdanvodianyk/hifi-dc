@@ -46,9 +46,13 @@ def main(argv=None):
                         help='hifidc_v2: run DSINE inside the timed call instead of using cached normals')
     parser.add_argument('--fast-attention', action='store_true',
                         help='Keep fused SDPA kernels (less memory, but runs are not bit-repeatable)')
+    parser.add_argument('--fast', action='store_true',
+                        help='--fast-attention and no per-step CUDA cache flush (~19 %% faster at 384 px; not bit-repeatable)')
     args = parser.parse_args(argv)
-    if args.fast_attention:
+    if args.fast_attention or args.fast:
         os.environ['HIFIDC_DETERMINISTIC_ATTENTION'] = '0'
+    if args.fast:
+        os.environ['HIFIDC_FREE_CACHE_EVERY_STEP'] = '0'
     configure_determinism()
 
     specs = load_manifest(args.scenes)

@@ -295,6 +295,7 @@ def make_hifidc_v2_method(config, device, normals_dir=None, checkpoint=MARIGOLD_
     dtype = torch.bfloat16 if config.dtype == 'bfloat16' else torch.float32
     pipe = HiFiDCv2Pipeline.from_pretrained(checkpoint, revision=revision, prediction_type='depth').to(device, dtype=dtype)
     pipe.scheduler = DDIMScheduler.from_config(pipe.scheduler.config, timestep_spacing='trailing')
+    pipe.free_cache_every_step = os.environ.get('HIFIDC_FREE_CACHE_EVERY_STEP', '1') != '0'
     counter = UNetCallCounter(pipe.unet)
     dsine = None
     if live_dsine:
