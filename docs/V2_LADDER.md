@@ -55,3 +55,15 @@ New scenes (Colab, 24 dev scenes from `main_datasets_new`, never used for tuning
 | trilateral / prior-guided filter | not better than L6 | — |
 | joint bilateral upsampling from the 384 grid instead of bilinear | +0.5–1 % with L6, sharpness unchanged | softness comes from the 384 solve, not the upsampling |
 | median + L6 | +0.5–1 % | within noise |
+
+## Phase 2 — speed (dev50, 384 px, local RTX 2000 Ada 8 GB; candidate = 22.7 s/case)
+
+| change | s/case | vs MDC | vs cand | decision |
+|---|---|---|---|---|
+| fused SDPA alone / no per-step cache flush alone | 22.5 / 21.1 | — | — | small each |
+| `--fast` = fused SDPA + no per-step cache flush | 18.5 (−19 %) | accuracy check pending | — | method unchanged; not bit-repeatable |
+| torch.compile (UNet or VAE decoder) | — | — | — | fails in dynamo with this torch/diffusers pair |
+| warm start 0.5 (one-step prior re-noised to mid-schedule, 25 solver steps) | 11.4 | 0.916 [0.756, 1.179] | 1.105 | **not kept**: real_indoor same as cand (1.006) and office_4 much better, but Living_room_8 2.7× worse; the one-step prior's texture-as-relief survives the shortened schedule |
+| warm start 0.7 (15 steps) | 6.8 | 1.017 | 1.227 | not kept |
+| 25 steps, 2× lr, scale/shift initialised from the prior fit (latent from noise) | 11.2 | 1.024 | 1.236 | not kept: same as without the init (1.017 vs the old fast setting), so the latent, not the affine, is what does not converge |
+| warm start 0.3 (35 steps); affine init at 50 steps | — | — | — | interrupted (host memory); to re-run |
