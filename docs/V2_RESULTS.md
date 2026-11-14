@@ -55,6 +55,20 @@ every metric improves, and the CIs exclude 1. The local, new-dev and test estima
 Largest gain on driving (KITTI, vKITTI2: ~0.66), smallest on real indoor (~0.87).
 `fast` confirms its dev result: halving the steps costs more than L7 + L6 give back.
 
+**Post-test fix to L7 (found in the final code review).** The test ran code in which the Tukey
+weights used the raw residual (not centred at its median) with a scale floor of 1e-4. On near-noise-free
+synthetic inputs that rejected clean points (10 % scale error, 50 clean points: 0.022–0.030 AbsRel vs
+0.011 for the plain fit). Fixed: centred residual, floor 0.01 in log units
+(`tests/test_post_field.py::test_robust_fit_matches_plain_fit_on_clean_points`). On real data the
+change is within 0.002: dev50 0.829 → 0.827 (s2024), 0.828 → 0.827 (s2025); stress48 (L1 base)
+0.854 → 0.853; the 5 %-outlier cases are unchanged (0.768). The test numbers above are for the code
+as run (commit `84f8aa1`); the fixed method was not re-run on the test split, which stays used once.
+
+**Known notebook limitation (not fixed; the test is already run):** the dev gate checks the comparison
+JSON on Drive but not the git SHA or config of the `cand` run that produced it, so a stale dev run could
+authorise a later test run. In this session the dev `cand` run was produced fresh, by the same code as
+the test run.
+
 ## Figures
 
 Side by side (RGB, sparse input, GT; MDC vs `cand` depth and relative error):

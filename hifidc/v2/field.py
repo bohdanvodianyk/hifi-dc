@@ -84,7 +84,10 @@ def log_residual_field(depth, sparse, grid=(6, 8), lam=0.3, robust=True, tukey_c
         basis = _basis(uv, grid)
         for _ in range(iters):
             e = r - basis @ q.reshape(-1)
-            scale = (1.4826 * (e - e.median()).abs().median()).clamp(min=1e-4)
+            e = e - e.median()  # the ridge prior leaves a common offset; weight the spread, not the offset
+            # Floor 0.01 (log units): on near-clean points the smooth misfit the grid prior leaves would
+            # otherwise exceed c * scale and reject good points; residuals < ~4.7 % are never outliers.
+            scale = (1.4826 * e.abs().median()).clamp(min=1e-2)
             u = (e / (tukey_c * scale)).clamp(-1, 1)
             weights = (1 - u ** 2) ** 2
             q = fit_residual_field(r, uv, weights, grid, lam)

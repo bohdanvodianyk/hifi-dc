@@ -59,3 +59,19 @@ def test_config_post_field_validated():
         V2Config(post_field='bogus').validate()
     with pytest.raises(ValueError):
         V2Config(post_field_lambda=0.0).validate()
+
+
+@pytest.mark.parametrize("n", [10, 50, 600])
+def test_robust_fit_matches_plain_fit_on_clean_points(n):
+    """Tukey weights are taken on the residual centred at its median: a constant offset left by the
+    ridge prior must not down-weight clean points (raw-residual weights gave 2-3x the plain error)."""
+    rng = np.random.default_rng(0)
+    h, w = 60, 80
+    gt = np.linspace(1, 4, h * w).reshape(h, w)
+    pred = gt / 1.1                                            # pure 10 % scale error
+    sparse = np.zeros_like(gt)
+    idx = rng.choice(h * w, n, replace=False)
+    sparse.flat[idx] = gt.flat[idx] * np.exp(rng.normal(0, 1e-3, n))
+    plain = _abs_rel(log_residual_field(pred, sparse, robust=False), gt)
+    robust = _abs_rel(log_residual_field(pred, sparse), gt)
+    assert robust <= 1.1 * plain + 1e-3, (robust, plain)
