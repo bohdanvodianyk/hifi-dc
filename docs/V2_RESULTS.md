@@ -39,18 +39,28 @@ Dev split (3 scenes per dataset, 24 scenes; Colab L4, end to end):
 `cand` reproduces the local gain on unseen scenes (local 0.829 / 0.843). `fast` does not: it tied MDC
 on the local scenes (1.007) but is 6 % worse here (real_indoor 1.16), so it is dropped from the test.
 
-Test split (10 scenes per dataset, run once with the frozen `cand`; MDC and `cand` only): **pending**.
+Test split (10 scenes per dataset, 80 scenes, never seen before; run once with the frozen `cand`,
+Colab L4, after the dev gate passed). `fast` was already dropped but ran too (the notebook in that
+session predated the change); it is reported for completeness.
 
-| set | `cand` vs MDC | real_indoor / synthetic / driving | si-log / δ1 / held-out |
-|---|---|---|---|
-| test patterns | | | |
-| test stress | | | |
+| set | `cand` vs MDC | real_indoor / synthetic / driving | si-log / δ1 / held-out | `fast` vs MDC |
+|---|---|---|---|---|
+| test patterns (400 cases) | **0.803 [0.775, 0.830]** | 0.871 / 0.846 / 0.666 | 0.836 / 0.765 / 0.846 | 1.041 [1.010, 1.073] |
+| test stress (336 cases) | **0.848 [0.828, 0.868]** | 0.863 / 0.847 / 0.650 | 0.869 / 0.837 / 0.880 | 1.055 [1.023, 1.089] |
+
+**Result:** on held-out scenes the frozen candidate has about 20 % lower AbsRel than Marigold-DC with
+5 sparse patterns and about 15 % lower under stress (100 / 300 points, 5 % outliers). Every group and
+every metric improves, and the CIs exclude 1. The local, new-dev and test estimates agree
+(0.829 → 0.821 → 0.803; stress 0.843 → 0.847 → 0.848), so the gain is not a tuning artefact.
+Largest gain on driving (KITTI, vKITTI2: ~0.66), smallest on real indoor (~0.87).
+`fast` confirms its dev result: halving the steps costs more than L7 + L6 give back.
 
 ## Figures
 
 Side by side (RGB, sparse input, GT; MDC vs `cand` depth and relative error):
 `results/viz/dev50_cand/` (one pattern per scene) and `results/viz/stress48_cand/` (100 points and
-outlier cases). New-scene figures are written by the notebook to `MyDrive/hifidc-v2/newdata_v1/viz/`.
+outlier cases). New-scene figures (dev 24 + 57, test 80 + 168 PNGs, MDC / `cand` / `fast`) are in
+`MyDrive/hifidc-v2/newdata_v1/viz/`; the comparison JSONs are in `MyDrive/hifidc-v2/newdata_v1/`.
 
 ## What did not help
 

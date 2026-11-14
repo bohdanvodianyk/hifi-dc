@@ -42,6 +42,9 @@ the end-to-end candidate run is the check): **0.829 [0.746, 0.901]** (s2024), **
 New scenes (Colab, 24 dev scenes from `main_datasets_new`, never used for tuning): L1 0.988
 [0.971, 1.004]; L1 + L6 (r 2) 0.894 [0.863, 0.922] (patterns) and 0.906 (stress). End-to-end on these scenes: `cand` **0.821 [0.781, 0.863]** (patterns), **0.847 [0.813, 0.881]** (stress), every group and metric better; `fast` 1.060 / 1.057 (dropped). Summary: `V2_RESULTS.md`.
 
+**Final held-out test (80 scenes, run once):** `cand` vs MDC **0.803 [0.775, 0.830]** (patterns),
+**0.848 [0.828, 0.868]** (stress); every group and metric better.
+
 ## Tried and not kept (offline probes on saved predictions)
 
 | idea | result vs the kept version | why not |
