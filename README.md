@@ -6,7 +6,39 @@ steered at test time by weighted least-squares metric anchoring, confidence-weig
 losses and convergence-aware multi-scale surface-normal guidance (DSINE), with a coarse-to-fine
 resolution schedule.
 
-> **Status — v1.1-corrected (branch `v2-dev`).** In the originally released `hifi_dc.py`, the
+## HiFi-DC v2 (release `v2.0`)
+
+v2 builds on the Marigold-DC test-time solver (`hifidc/v2/`) and adds, in this order: a unit-free
+median-normalised input, light DSINE surface-normal guidance, a robust multiplicative low-frequency
+correction fitted to the sparse points (`log_residual_field`), and an RGB-guided filter on the final
+log-depth. Config: [`configs/v2/candidate.yaml`](configs/v2/candidate.yaml).
+
+On 80 held-out scenes from 8 datasets (NYUv2, VOID, Hypersim, InteriorNet, ICL-NUIM, Sintel, KITTI,
+vKITTI2; 384 px, never used for tuning, evaluated once), AbsRel relative to Marigold-DC
+(< 1 = better, 95 % scene-clustered bootstrap CI):
+
+| cases | v2 / Marigold-DC | real indoor / synthetic / driving |
+|---|---|---|
+| 5 sparse patterns, 1000 points (400) | **0.803 [0.775, 0.830]** | 0.871 / 0.846 / 0.666 |
+| 100 / 300 points, 5 % outliers (336) | **0.848 [0.828, 0.868]** | 0.863 / 0.847 / 0.650 |
+
+Every group and metric (AbsRel, scale-invariant log RMSE, δ1, held-out point error) improves, at
+Marigold-DC's runtime plus about 1 s for DSINE. Details, development results and the one post-test fix:
+[`docs/V2_RESULTS.md`](docs/V2_RESULTS.md); every keep/drop decision: [`docs/V2_LADDER.md`](docs/V2_LADDER.md).
+
+```bash
+python scripts/cache_normals.py --data data/test --out cache/normals
+python scripts/run_benchmark.py --method hifidc_v2 --v2-config configs/v2/candidate.yaml \
+    --cases dev50 --resolution 384 --out results/v2_candidate
+```
+
+From Python, `hifidc.bench.make_hifidc_v2_method(config, device)` returns
+`method(scene, normals, seed, resolution) -> (depth, info)`; the pipeline itself is
+`hifidc.v2.pipeline.HiFiDCv2Pipeline`.
+
+## v1.1-corrected
+
+> **Status — v1.1-corrected (tag `v1.1-corrected`).** In the originally released `hifi_dc.py`, the
 > clean-sample prediction used for the guidance losses was computed under `torch.no_grad()`, so
 > the losses never reached the optimised latent: the output was plain Marigold depth plus a global
 > affine fit. This branch contains a corrected, paper-guided implementation in which the
