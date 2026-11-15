@@ -134,11 +134,13 @@ class HiFiDCv2Pipeline(MarigoldDepthPipeline):
             noise = self.unet(torch.cat([state['image_latent'], state['pred_latent']], dim=1), first,
                               encoder_hidden_states=self.empty_text_embedding, return_dict=False)[0]
             prior_latent = self.scheduler.step(noise, first, state['pred_latent'], generator=generator).pred_original_sample
-            unit = torch.tensor(1.0 / state['sparse_range'], device=prior_latent.device).sqrt()
-            prior = self._metric(prior_latent, unit, torch.zeros_like(unit), state).float()
-            mask = state['mask']
-            scale0, shift0 = affine_from_prior(prior[mask].cpu(), state['sparse'][mask].cpu(),
-                                               state['sparse_range'], state['sparse_lower'])
+            scale0, shift0 = torch.ones(1), torch.ones(1)
+            if config.warm_affine != 'none':
+                unit = torch.tensor(1.0 / state['sparse_range'], device=prior_latent.device).sqrt()
+                prior = self._metric(prior_latent, unit, torch.zeros_like(unit), state).float()
+                mask = state['mask']
+                scale0, shift0 = affine_from_prior(prior[mask].cpu(), state['sparse'][mask].cpu(),
+                                                   state['sparse_range'], state['sparse_lower'], config.warm_affine)
             if start == 0:
                 return 0, scale0, shift0, state['pred_latent']
             eps = torch.randn(prior_latent.shape, generator=generator, device=prior_latent.device,

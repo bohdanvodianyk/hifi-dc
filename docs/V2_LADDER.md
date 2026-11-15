@@ -61,9 +61,13 @@ New scenes (Colab, 24 dev scenes from `main_datasets_new`, never used for tuning
 | change | s/case | vs MDC | vs cand | decision |
 |---|---|---|---|---|
 | fused SDPA alone / no per-step cache flush alone | 22.5 / 21.1 | — | — | small each |
-| `--fast` = fused SDPA + no per-step cache flush | 18.5 (−19 %) | accuracy check pending | — | method unchanged; not bit-repeatable |
+| `--fast` = fused SDPA + no per-step cache flush | 16.9 (−26 %) | 0.826 [0.746, 0.896] | 0.997 [0.983, 1.010] | **keep** as the runtime default for speed runs; method unchanged, not bit-repeatable |
 | torch.compile (UNet or VAE decoder) | — | — | — | fails in dynamo with this torch/diffusers pair |
-| warm start 0.5 (one-step prior re-noised to mid-schedule, 25 solver steps) | 11.4 | 0.916 [0.756, 1.179] | 1.105 | **not kept**: real_indoor same as cand (1.006) and office_4 much better, but Living_room_8 2.7× worse; the one-step prior's texture-as-relief survives the shortened schedule |
-| warm start 0.7 (15 steps) | 6.8 | 1.017 | 1.227 | not kept |
-| 25 steps, 2× lr, scale/shift initialised from the prior fit (latent from noise) | 11.2 | 1.024 | 1.236 | not kept: same as without the init (1.017 vs the old fast setting), so the latent, not the affine, is what does not converge |
-| warm start 0.3 (35 steps); affine init at 50 steps | — | — | — | interrupted (host memory); to re-run |
+| warm start 0.5 (one-step prior re-noised to mid-schedule, 25 solver steps; prior LS affine init) | 11.4 | 0.916 [0.756, 1.179] | 1.105 | **not kept**: office_4 0.70×, Living_room_8 2.75× |
+| warm start 0.7 (15 steps; prior affine init) | 6.8 | 1.017 | 1.227 | not kept |
+| warm start 0.3 (35 steps; prior affine init) | 15.2 | 0.872 [0.710, 1.135] | 1.052 | not kept |
+| prior affine init only, 50 steps, latent from noise (`warm_start=0.005`) | 21.9 | 0.875 [0.710, 1.131] | 1.056 | **not kept** — and the cause of the warm-start losses: per scene it matches warm 0.3 (Living_room_8 2.64×, office_4 0.70×), so the LS affine init from the one-step prior, not the warm latent, moves the result. warm 0.3 vs this: same accuracy at 70 % of the time |
+| 25 steps, 2× lr, prior affine init (latent from noise) | 11.2 | 1.024 | 1.236 | not kept (≈ the old fast setting, 1.017) |
+| warm start 0.3 / 0.5 / 0.7, cold affine init (`warm_affine: none`, `--fast`) | 12.0 / 8.5 / 5.3 | 0.904 / 1.060 / 1.147 | 1.094 / 1.283 / 1.389 (vs `--fast`) | **not kept**: Living_room_8 is fixed at 0.3 (1.06) but driving 1.45 and Scene20 1.68 / office_4 1.21 lose what the prior init gave; at 0.5+ Living_room_8 fails again (2.3, texture). The warm latent needs a matching affine, and the LS one is wrong for some scenes |
+| why the LS affine init fails (hypothesis) | — | — | — | the LS fit of the one-step prior gives a low scale and a high shift (Living_room_8: 0.74 / 0.58 vs 1.00 / 0.31 cold; office_4 shift 0.56 vs 0.05), and the solver then barely moves it (0.738 → 0.738). Guess: regression dilution by noise in the prior — **rejected** by the next row |
+| warm start 0.3, inverse-regression affine init (undiluted when the noise is in the prior; `--fast`) | 11.9 | 0.894 [0.738, 1.134] | 1.082 [0.916, 1.352] | **not kept**: Living_room_8 still 2.60× (ls 2.81, cold 1.06), market_2 1.26; driving and Scene20 kept. Whatever the prior's affine gets wrong on Living_room_8 is not slope dilution. `rma` at 0.3 (26/50) and `inverse` at 0.5 interrupted (host memory) |

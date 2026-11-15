@@ -37,6 +37,9 @@ class V2Config:
     # Phase 2 warm start: fraction of the schedule skipped by starting from a one-step prior, re-noised
     # to that timestep, with scale/shift initialised by an LS fit of the prior (0 = cold start, L0).
     warm_start: float = 0.0
+    # Warm-start scale/shift init from a fit of the prior: 'ls', 'rma' or 'inverse' (less / not diluted
+    # by noise in the prior, see warm.affine_from_prior), or 'none' = cold init (1, 1) with the warm latent.
+    warm_affine: str = 'ls'
 
     def validate(self):
         if not isinstance(self.steps, int) or isinstance(self.steps, bool) or self.steps < 1:
@@ -69,6 +72,8 @@ class V2Config:
             raise ValueError('post_field_lambda must be finite and positive')
         if not (math.isfinite(self.warm_start) and 0 <= self.warm_start < 1):
             raise ValueError('warm_start must be in [0, 1)')
+        if self.warm_affine not in ('ls', 'rma', 'inverse', 'none'):
+            raise ValueError('warm_affine must be ls, rma, inverse or none')
         if self.dtype not in ('bfloat16', 'float32'):
             raise ValueError('dtype must be bfloat16 or float32')
         return self
