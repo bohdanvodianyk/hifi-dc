@@ -74,3 +74,12 @@ New scenes (Colab, 24 dev scenes from `main_datasets_new`, never used for tuning
 | warm start 0.3 `rma`; 0.5 `inverse` (`--fast`) | 11.9 / 8.7 | 0.876 / 0.926 | 1.060 / 1.121 | not kept: between `ls` and `inverse`, as expected; synthetic 1.19 / 1.29 |
 | **Phase 2 conclusion** | | | | `--fast` is the speed result (16.9 s vs MDC 21.2 s, 0.826 vs MDC). Every warm start costs 5–12 % at 0.3 and more beyond, whatever the affine init; the latent needs the full noise-to-data schedule |
 | two starts per case, keep the one with the lower anchor residual (input points only; offline from saved runs) | ~24 (2 runs) | 0.791 [0.705, 0.864] (warm-ls 0.3 + warm-cold 0.3) | 0.958 [0.881, 1.024] | **not kept**: control — the same selection between two seeds of cand gives 0.976, so half the gain is best-of-two noise; the warm start adds ~2 % (n.s.) at twice the cost. Deciding early does not work: picking by the solver loss at any step up to the last gives 1.01–1.06 (agreement with the final pick 22–36/50); only the residual after L7 + L6 selects well |
+
+## Phase 3 — cheaper steps (dev50, 384 px, all with `--fast`; reference = cand + `--fast`, 16.9 s/case)
+
+| change | s/case | vs MDC | vs cand `--fast` | decision |
+|---|---|---|---|---|
+| no UNet backward (`unet_grad_steps: 0`) | 11.2 | 1.730 [1.279, 2.603] | 2.094 | **drop**: Marigold is v-prediction, x0 = sqrt(abar) x_t - sqrt(1-abar) v, so early on the latent reaches x0 almost only through the UNet (sqrt(abar) = 0.07 at step 1) |
+| UNet backward for the first 50 % / 70 % of steps | 13.9 / 15.0 | 1.169 / 1.026 | 1.415 / 1.242 | **drop**: the UNet Jacobian matters late as well |
+| TAESD for the in-loop decode, full VAE for the final depth (`loop_decoder: taesd`) | **9.7** | **0.863 [0.789, 0.926]** | 1.044 [1.002, 1.081] | promising: 2.2x faster than MDC, still clearly better. TAESD vs full VAE on saved predictions: corr 0.998, mean abs diff 0.02-0.03 on [-1, 1], edge strength 0.94-1.01 |
+| TAESD for the first 80 % / 90 % of steps, full VAE after (`loop_decoder_steps`) | — | — | — | interrupted (host memory) at 10/50; to re-run |

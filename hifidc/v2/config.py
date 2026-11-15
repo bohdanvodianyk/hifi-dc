@@ -40,6 +40,15 @@ class V2Config:
     # Warm-start scale/shift init from a fit of the prior: 'ls', 'rma' or 'inverse' (less / not diluted
     # by noise in the prior, see warm.affine_from_prior), or 'none' = cold init (1, 1) with the warm latent.
     warm_affine: str = 'ls'
+    # Phase 3: fraction of steps, from the start, that backpropagate through the UNet; later steps treat
+    # the UNet output as constant (gradient through the direct sqrt(abar) x_t path and the decoder only).
+    # 1.0 = Marigold-DC; 0.0 is 2.1x worse on dev50 (early on the latent reaches x0 only via the UNet).
+    unet_grad_steps: float = 1.0
+    # Phase 3: decoder for the in-loop guidance prediction, 'vae' (Marigold-DC) or 'taesd' (tiny decoder,
+    # pipe.tiny_vae); the final depth is always decoded with the full VAE.
+    loop_decoder: str = 'vae'
+    # fraction of steps, from the start, decoded with loop_decoder; the remaining steps use the full VAE
+    loop_decoder_steps: float = 1.0
 
     def validate(self):
         if not isinstance(self.steps, int) or isinstance(self.steps, bool) or self.steps < 1:
@@ -74,6 +83,12 @@ class V2Config:
             raise ValueError('warm_start must be in [0, 1)')
         if self.warm_affine not in ('ls', 'rma', 'inverse', 'none'):
             raise ValueError('warm_affine must be ls, rma, inverse or none')
+        if not (math.isfinite(self.unet_grad_steps) and 0 <= self.unet_grad_steps <= 1):
+            raise ValueError('unet_grad_steps must be in [0, 1]')
+        if self.loop_decoder not in ('vae', 'taesd'):
+            raise ValueError('loop_decoder must be vae or taesd')
+        if not (math.isfinite(self.loop_decoder_steps) and 0 <= self.loop_decoder_steps <= 1):
+            raise ValueError('loop_decoder_steps must be in [0, 1]')
         if self.dtype not in ('bfloat16', 'float32'):
             raise ValueError('dtype must be bfloat16 or float32')
         return self

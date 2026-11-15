@@ -24,10 +24,13 @@ from .warm import affine_from_prior
 
 class HiFiDCv2Pipeline(MarigoldDepthPipeline):
     free_cache_every_step = True  # Marigold-DC behaviour; False is ~7 % faster at 384 px, same peak memory
+    tiny_vae = None               # AutoencoderTiny (TAESD) for config.loop_decoder == 'taesd'
 
     def __call__(self, *, image, sparse_depth, config=None, seed=2024, processing_resolution=768,
                  normals=None, kappa=None, intrinsics=None, return_details=False):
         config = (config or V2Config()).validate()
+        if config.loop_decoder == 'taesd' and self.tiny_vae is None:
+            raise ValueError("loop_decoder 'taesd' needs pipe.tiny_vae (diffusers AutoencoderTiny)")
         if not isinstance(image, Image.Image):
             raise TypeError('image must be a PIL Image')
         if not isinstance(sparse_depth, np.ndarray) or sparse_depth.ndim != 2:
@@ -52,13 +55,16 @@ class HiFiDCv2Pipeline(MarigoldDepthPipeline):
                                       {'params': [latent], 'lr': config.latent_lr}])
         for index, t in enumerate(self.scheduler.timesteps[start:], start=start):
             optimizer.zero_grad()
-            noise = self.unet(torch.cat([state['image_latent'], latent], dim=1), t,
-                              encoder_hidden_states=self.empty_text_embedding, return_dict=False)[0]
+            with torch.set_grad_enabled(index < round(config.unet_grad_steps * config.steps)):
+                noise = self.unet(torch.cat([state['image_latent'], latent], dim=1), t,
+                                  encoder_hidden_states=self.empty_text_embedding, return_dict=False)[0]
             with torch.no_grad():
                 alpha_prod_t = self.scheduler.alphas_cumprod[t]
                 pred_epsilon = (alpha_prod_t ** 0.5) * noise + ((1 - alpha_prod_t) ** 0.5) * latent
             step_output = self.scheduler.step(noise, t, latent, generator=generator)
-            prediction = self._metric(step_output.pred_original_sample, scale, shift, state)
+            prediction = self._metric(step_output.pred_original_sample, scale, shift, state,
+                                      tiny=config.loop_decoder == 'taesd'
+                                      and index < round(config.loop_decoder_steps * config.steps))
             field_parts = {}
             if config.field:
                 start = int(config.field_start * config.steps)
@@ -175,9 +181,13 @@ class HiFiDCv2Pipeline(MarigoldDepthPipeline):
                                config.field_lambda)
         return evaluate_field(q.to(prediction.device), (h, w)).to(prediction.dtype)
 
-    def _metric(self, latent, scale, shift, state):
-        """Decode a latent to metric depth on the original grid (Marigold-DC Eq. 2)."""
-        affine_invariant = self.decode_prediction(latent)
+    def _metric(self, latent, scale, shift, state, tiny=False):
+        """Decode a latent to metric depth on the original grid (Marigold-DC Eq. 2); tiny = TAESD decoder."""
+        if tiny:  # TAESD takes the scaled latent (its scaling_factor is 1); same channel mean / clip as Marigold
+            decoded = self.tiny_vae.decode(latent.to(self.tiny_vae.dtype), return_dict=False)[0]
+            affine_invariant = (decoded.mean(dim=1, keepdim=True).clamp(-1.0, 1.0) + 1.0) / 2.0
+        else:
+            affine_invariant = self.decode_prediction(latent)
         prediction = (scale ** 2) * state['sparse_range'] * affine_invariant + (shift ** 2) * state['sparse_lower']
         prediction = self.image_processor.unpad_image(prediction, state['padding'])
         return self.image_processor.resize_antialias(prediction, state['original_resolution'], 'bilinear', is_aa=False)

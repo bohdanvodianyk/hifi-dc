@@ -25,6 +25,8 @@ from .metrics import aggregate, anchor_residual, depth_metrics
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MARIGOLD_CHECKPOINT = 'prs-eth/marigold-depth-v1-0'
 MARIGOLD_REVISION = 'f4fc453d7d217cbe30ddcad3eb311d1ad9a11c4c'
+TAESD_CHECKPOINT = 'madebyollin/taesd'  # tiny SD VAE decoder for the Phase 3 in-loop decode (loop_decoder: taesd)
+TAESD_REVISION = '614f76814bbe30edbe2e627ace1c2234c81a2c0e'
 METRIC_KEYS = ['abs_rel', 'sq_rel', 'rmse', 'mae', 'delta1', 'si_log_rmse', 'frac_pred_nonpositive', 'n_valid']
 CSV_COLUMNS = (['stem', 'source', 'seed', 'case', 'status', 'message'] + METRIC_KEYS
                + ['holdout_residual', 'anchor_residual', 'seconds', 'peak_vram_gb', 'unet_calls', 'unit_uncertain', 'outdoor'])
@@ -296,6 +298,9 @@ def make_hifidc_v2_method(config, device, normals_dir=None, checkpoint=MARIGOLD_
     pipe = HiFiDCv2Pipeline.from_pretrained(checkpoint, revision=revision, prediction_type='depth').to(device, dtype=dtype)
     pipe.scheduler = DDIMScheduler.from_config(pipe.scheduler.config, timestep_spacing='trailing')
     pipe.free_cache_every_step = os.environ.get('HIFIDC_FREE_CACHE_EVERY_STEP', '1') != '0'
+    if config.loop_decoder == 'taesd':
+        from diffusers import AutoencoderTiny
+        pipe.tiny_vae = AutoencoderTiny.from_pretrained(TAESD_CHECKPOINT, revision=TAESD_REVISION).to(device, dtype=dtype)
     counter = UNetCallCounter(pipe.unet)
     dsine = None
     if live_dsine:
