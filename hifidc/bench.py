@@ -298,6 +298,7 @@ def make_hifidc_v2_method(config, device, normals_dir=None, checkpoint=MARIGOLD_
     pipe = HiFiDCv2Pipeline.from_pretrained(checkpoint, revision=revision, prediction_type='depth').to(device, dtype=dtype)
     pipe.scheduler = DDIMScheduler.from_config(pipe.scheduler.config, timestep_spacing='trailing')
     pipe.free_cache_every_step = os.environ.get('HIFIDC_FREE_CACHE_EVERY_STEP', '1') != '0'
+    pipe.freeze_weights = os.environ.get('HIFIDC_FREEZE_WEIGHTS', '0') == '1'
     if config.loop_decoder == 'taesd':
         from diffusers import AutoencoderTiny
         pipe.tiny_vae = AutoencoderTiny.from_pretrained(TAESD_CHECKPOINT, revision=TAESD_REVISION).to(device, dtype=dtype)
@@ -326,5 +327,6 @@ def make_hifidc_v2_method(config, device, normals_dir=None, checkpoint=MARIGOLD_
                                                                       'trace': result['trace']}
 
     method.meta = {'method': 'hifidc_v2', 'config': asdict(config), 'config_sha256': sha256_json(asdict(config)),
-                   'checkpoint': checkpoint, 'revision': revision, 'dtype': config.dtype, 'live_dsine': live_dsine}
+                   'checkpoint': checkpoint, 'revision': revision, 'dtype': config.dtype, 'live_dsine': live_dsine,
+                   'free_cache_every_step': pipe.free_cache_every_step, 'freeze_weights': pipe.freeze_weights}
     return method

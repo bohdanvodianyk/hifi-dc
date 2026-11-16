@@ -47,12 +47,14 @@ def main(argv=None):
     parser.add_argument('--fast-attention', action='store_true',
                         help='Keep fused SDPA kernels (less memory, but runs are not bit-repeatable)')
     parser.add_argument('--fast', action='store_true',
-                        help='--fast-attention and no per-step CUDA cache flush (~19 %% faster at 384 px; not bit-repeatable)')
+                        help='--fast-attention, no per-step CUDA cache flush and frozen model weights (latent '
+                             'gradient only); 16.8 -> 11.3 s per case at 384 px vs fused attention alone; not bit-repeatable')
     args = parser.parse_args(argv)
     if args.fast_attention or args.fast:
         os.environ['HIFIDC_DETERMINISTIC_ATTENTION'] = '0'
     if args.fast:
         os.environ['HIFIDC_FREE_CACHE_EVERY_STEP'] = '0'
+        os.environ['HIFIDC_FREEZE_WEIGHTS'] = '1'
     configure_determinism()
 
     specs = load_manifest(args.scenes)

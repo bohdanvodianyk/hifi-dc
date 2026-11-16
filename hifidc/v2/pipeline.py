@@ -25,12 +25,20 @@ from .warm import affine_from_prior
 class HiFiDCv2Pipeline(MarigoldDepthPipeline):
     free_cache_every_step = True  # Marigold-DC behaviour; False is ~7 % faster at 384 px, same peak memory
     tiny_vae = None               # AutoencoderTiny (TAESD) for config.loop_decoder == 'taesd'
+    # The guidance needs d loss / d latent only: frozen weights skip the weight-gradient half of every
+    # backward (16.8 -> 11.3 s per case at 384 px, peak 5.9 -> 4.0 GB). Same maths, but input-only conv
+    # backward kernels round differently (~1 ulp), so off by default = bit-exact Marigold-DC (which leaves them on).
+    freeze_weights = False
 
     def __call__(self, *, image, sparse_depth, config=None, seed=2024, processing_resolution=768,
                  normals=None, kappa=None, intrinsics=None, return_details=False):
         config = (config or V2Config()).validate()
         if config.loop_decoder == 'taesd' and self.tiny_vae is None:
             raise ValueError("loop_decoder 'taesd' needs pipe.tiny_vae (diffusers AutoencoderTiny)")
+        if self.freeze_weights:
+            for module in (self.unet, self.vae, self.tiny_vae):
+                if module is not None:
+                    module.requires_grad_(False)
         if not isinstance(image, Image.Image):
             raise TypeError('image must be a PIL Image')
         if not isinstance(sparse_depth, np.ndarray) or sparse_depth.ndim != 2:

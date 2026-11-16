@@ -86,3 +86,19 @@ New scenes (Colab, 24 dev scenes from `main_datasets_new`, never used for tuning
 | **TAESD for the first 50 % of steps** (`configs/v2/candidate_taesd.yaml`) | **13.4** | **0.825 [0.754, 0.886]** | **0.999 [0.969, 1.028]** | **keep** as the speed setting (pending the Colab new-scene check): groups 0.999 / 0.970 / 1.060 (driving just over 5 %, one KITTI scene); stress48 **0.990 [0.947, 1.031]** vs cand, 0.834 vs MDC, groups 1.005 / 0.969 / 1.031, 13.8 s. 1.6x faster than MDC (21.2 s) at the candidate's accuracy. **New scenes (Colab, 24 dev scenes): vs MDC 0.841 [0.788, 0.895] (patterns), 0.870 [0.823, 0.918] (stress), every group and metric better; vs cand (ratio of the two MDC ratios, same cases) 1.024 / 1.027, real_indoor 1.082 / 1.063, synthetic 1.013 / 1.034, driving 0.990 / 0.947.** So not equal accuracy: real_indoor loses 6-8 % (the local dev50 has too few real-indoor scenes to show it). Kept as a speed/accuracy trade-off option, not as the default. Colab L4 median s/case: MDC 17.7, cand (no `--fast`) 17.9, cand_taesd 11.3 (patterns) / 11.4 (stress) = 1.57x faster than MDC |
 
 Local runs from here on use `.superpowers/half.sh` (two foreground 5-scene halves, ~5 min and 4.4 GB host RSS each): background shells were killed four times by the host-memory reaper.
+
+### Frozen weights (free speed-up, now part of `--fast`)
+
+A per-part profile of one case (`.superpowers/profile_case.py`, 384 px, latent 40x48) put 67 % of the time in
+`loss.backward()` and showed every UNet and VAE-decoder weight receiving a gradient each step (never used: the
+optimiser holds only the latent, scale and shift; Marigold-DC does the same). Per step: UNet fwd+bwd 159 -> 95 ms,
+VAE decode fwd+bwd 186 -> 136 ms once the weights are frozen. Same maths; input-only conv backward kernels round
+differently (~1 ulp on the CPU golden test), so `HiFiDCv2Pipeline.freeze_weights` stays off by default (bit-exact
+Marigold-DC) and `run_benchmark --fast` switches it on (with fused SDPA and no per-step cache flush).
+
+| setting (dev50, 384 px, local RTX 2000 Ada) | s/case | peak VRAM | vs MDC | vs cand + old `--fast` | decision |
+|---|---|---|---|---|---|
+| MDC (official settings) | 21.2 | 6.23 GB | 1 | | reference |
+| cand + old `--fast` (fused SDPA, no cache flush) | 16.9 | 5.88 GB | 0.826 | 1 | |
+| **cand + `--fast` incl. frozen weights** | **11.4** | **4.07 GB** | **0.824 [0.744, 0.894]** | **0.997 [0.989, 1.006]**, groups 0.998 / 0.998 / 0.992 | **keep: the v2 default way to run** — 1.86x faster than MDC at unchanged accuracy |
+| cand_taesd + `--fast` incl. frozen weights | **8.7** | | 0.827 [0.753, 0.890] | 1.001 [0.968, 1.031], groups 1.004 / 0.973 / 1.050 | trade-off option as before (new scenes: ~2.5 % worse than cand, real_indoor 6-8 %): 2.4x faster than MDC |
