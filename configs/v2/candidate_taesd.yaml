@@ -1,0 +1,18 @@
+# Phase 3: the candidate with the in-loop decode on TAESD for the first half of the steps (full VAE after
+# and for the final depth). dev50 0.999 / stress48 0.990 vs the candidate, 13.4 s vs 16.9 s per case (--fast, 384 px).
+steps: 50
+latent_lr: 0.05
+affine_lr: 0.005
+dtype: bfloat16
+normalize_input: true
+robust: none
+normal_weight: 0.025
+normal_start: 0.66
+edge_tau: 0.2
+kappa_gate: false
+post_field: log_robust
+post_field_lambda: 0.3
+post_filter: guided
+filter_radius: 2
+loop_decoder: taesd
+loop_decoder_steps: 0.5

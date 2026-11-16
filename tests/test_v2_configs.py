@@ -26,3 +26,12 @@ def test_fast_is_25_steps_2x_lr_without_normals():
     assert (c.steps, c.latent_lr, c.affine_lr, c.normalize_input) == (25, 0.1, 0.01, True)
     assert c.normal_weight == 0.0  # measured without DSINE guidance; needs no normals
     assert (c.post_field, c.post_field_lambda, c.post_filter, c.filter_radius) == ('log_robust', 0.3, 'guided', 2)
+
+
+def test_candidate_taesd_is_the_candidate_with_a_half_taesd_loop():
+    cand = load_dataclass(V2Config, CONFIGS / "candidate.yaml")
+    c = load_dataclass(V2Config, CONFIGS / "candidate_taesd.yaml")
+    assert (c.loop_decoder, c.loop_decoder_steps) == ("taesd", 0.5)
+    for key in ("steps", "latent_lr", "affine_lr", "normalize_input", "normal_weight", "normal_start", "kappa_gate",
+                "post_field", "post_field_lambda", "post_filter", "filter_radius"):
+        assert getattr(c, key) == getattr(cand, key), key
