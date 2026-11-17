@@ -48,13 +48,15 @@ def aggregate(rows):
     return summary
 
 
-def edge_metrics(pred, gt, valid, jump=0.1, band=2, min_fill=0.9):
+def edge_metrics(pred, gt, valid, jump=0.1, band=2, min_fill=0.9, span_grid=384):
     """Depth-edge quality on dense GT (NaN when less than ``min_fill`` of the GT is valid).
 
     Edges are neighbouring valid GT pixels whose log-depth differs by more than ``jump`` (~10 %).
     edge_abs_rel: AbsRel inside a band of ``band`` px (on a 384-px grid, scaled) around the edges.
     edge_sharpness: median over edge pairs of |d log pred| / |d log gt| across the same pair, clipped
     to [0, 2]; 1 = as sharp as GT, a blurred edge is < 1. Both are unit-free.
+    span_grid: the solve grid (long side, px) whose upsampled edges still count as sharp; 768 is
+    stricter and tells a 768-px solve from a 384-px one.
     """
     nan = {'edge_abs_rel': float('nan'), 'edge_sharpness': float('nan'), 'n_edge': 0}
     if valid.mean() < min_fill:
@@ -66,8 +68,8 @@ def edge_metrics(pred, gt, valid, jump=0.1, band=2, min_fill=0.9):
     edges = np.zeros(gt.shape, bool)
     ratios = []
     # Jumps are compared over a span of 1.5 grid pixels on each side of the edge pair, so an edge
-    # computed on the 384-px grid and upsampled still counts as sharp; wider blur does not.
-    span = max(1, int(np.ceil(1.5 * max(gt.shape) / 384)))
+    # computed on the span_grid-px grid and upsampled still counts as sharp; wider blur does not.
+    span = max(1, int(np.ceil(1.5 * max(gt.shape) / span_grid)))
     for axis in (1, 0):
         lg_t, lp_t, e_t = (lg, lp, edges) if axis == 1 else (lg.T, lp.T, edges.T)
         dg = lg_t[:, 1:] - lg_t[:, :-1]

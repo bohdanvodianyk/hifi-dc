@@ -60,3 +60,24 @@ def test_upsampled_but_correct_edge_still_counts_as_sharp():
     pred = F.interpolate(coarse, size=(h, w), mode="bilinear", align_corners=False)[0, 0].numpy()
     assert edge_metrics(pred, gt, np.ones_like(gt, bool))["edge_sharpness"] > 0.8
     assert edge_metrics(_blur(gt, 15), gt, np.ones_like(gt, bool))["edge_sharpness"] < 0.6
+
+
+def _upsampled_from(gt, width):
+    h, w = gt.shape
+    coarse = F.interpolate(torch.from_numpy(gt)[None, None], size=(round(h * width / w), width), mode="area")
+    return F.interpolate(coarse, size=(h, w), mode="bilinear", align_corners=False)[0, 0].numpy()
+
+
+def test_finer_span_grid_tells_a_384_solve_from_a_768_solve():
+    h, w = 240, 1280
+    gt = np.full((h, w), 2.0, np.float32)
+    gt[:, 667:] = 5.0
+    valid = np.ones_like(gt, bool)
+    from_384, from_768 = _upsampled_from(gt, 384), _upsampled_from(gt, 768)
+    # the default tolerance (384 grid) counts both as sharp; the 768 tolerance only the 768 solve
+    assert edge_metrics(from_384, gt, valid)["edge_sharpness"] > 0.8
+    assert edge_metrics(from_768, gt, valid, span_grid=768)["edge_sharpness"] > 0.8
+    # an ideal (area-down, bilinear-up) 384 edge: 0.94 vs 1.0; real 384 solves are blurrier than that
+    assert (edge_metrics(from_384, gt, valid, span_grid=768)["edge_sharpness"]
+            < edge_metrics(from_768, gt, valid, span_grid=768)["edge_sharpness"] - 0.03)
+    assert edge_metrics(gt, gt, valid, span_grid=768) == edge_metrics(gt, gt, valid)  # exact edge: same either way
