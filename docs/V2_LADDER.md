@@ -101,4 +101,5 @@ Marigold-DC) and `run_benchmark --fast` switches it on (with fused SDPA and no p
 | MDC (official settings) | 21.2 | 6.23 GB | 1 | | reference |
 | cand + old `--fast` (fused SDPA, no cache flush) | 16.9 | 5.88 GB | 0.826 | 1 | |
 | **cand + `--fast` incl. frozen weights** | **11.4** | **4.07 GB** | **0.824 [0.744, 0.894]** | **0.997 [0.989, 1.006]**, groups 0.998 / 0.998 / 0.992 | **keep: the v2 default way to run** — 1.86x faster than MDC at unchanged accuracy |
+| new Colab scenes, cand + old `--fast` (two repeat runs, both at e46d16b; "cand_fast" / "cand_frozen" labels) | | | patterns 0.823 / 0.826, stress 0.855 / 0.850 (cand 0.821 / 0.847) | ratio of MDC ratios 1.002 / 1.006 (patterns), 1.009 / 1.004 (stress) | old `--fast` is accuracy-neutral on new scenes too; repeat noise ~0.5 % |
 | cand_taesd + `--fast` incl. frozen weights | **8.7** | | 0.827 [0.753, 0.890] | 1.001 [0.968, 1.031], groups 1.004 / 0.973 / 1.050 | trade-off option as before (new scenes: ~2.5 % worse than cand, real_indoor 6-8 %): 2.4x faster than MDC |
